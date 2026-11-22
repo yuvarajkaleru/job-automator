@@ -3,6 +3,7 @@ import sqlite3
 import subprocess
 import asyncio
 import re
+import time
 import pandas as pd
 from jobspy import scrape_jobs
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
@@ -48,11 +49,9 @@ def evaluate_job(job_title, job_description, location_str):
     desc_lower = job_description.lower()
     loc_lower = location_str.lower()
 
-    # Location Filter: Must be Hyderabad or Remote
     if not ("hyderabad" in loc_lower or "remote" in loc_lower or "india" in loc_lower):
         return 0.0, "Outside Location", [], "Excluded"
 
-    # STRICT EXCLUSIONS: Instantly drop Senior/Experienced titles
     senior_terms = [
         "senior", "sr.", "sr", "lead", "principal", "manager", 
         "architect", "staff", "head of", "director", "tech lead"
@@ -61,7 +60,6 @@ def evaluate_job(job_title, job_description, location_str):
         if re.search(r'\b' + re.escape(term) + r'\b', title_lower):
             return 0.0, "Senior Title Excluded", [], "Excluded"
 
-    # STRICT EXCLUSIONS: Drop 2+ years experience requirements
     exp_patterns = [
         r'2\+\s*years', r'3\+\s*years', r'4\+\s*years', r'5\+\s*years', 
         r'2\s*to\s*\d\s*years', r'3\s*to\s*\d\s*years', r'minimum\s*2\s*years', r'minimum\s*3\s*years'
@@ -69,9 +67,6 @@ def evaluate_job(job_title, job_description, location_str):
     if any(re.search(pattern, desc_lower) for pattern in exp_patterns):
         return 0.0, "Experience Exceeded", [], "Excluded"
 
-    # Hierarchy Preference Scoring
-    # 1st Preference: Full-Time Fresher / Graduate / Entry Level
-    # 2nd Preference: Internship
     role_type = "2nd Pref: Internship" if "intern" in title_lower or "internship" in title_lower else "1st Pref: Fresher Full-Time"
     pref_boost = 0.30 if role_type == "1st Pref: Fresher Full-Time" else 0.15
 
@@ -89,43 +84,35 @@ def evaluate_job(job_title, job_description, location_str):
     final_score = min(1.0, similarity + pref_boost + (len(matched_skills) * 0.03))
     return round(final_score * 100, 1), "Valid Role", matched_skills, role_type
 
-# 3. Targeted Scraper Engine (1st Preference: Fresher Full-Time, 2nd Preference: Internships)
+# 3. Rate-Limit Resistant Scraper Engine (Indeed + Google/LinkedIn with Delays)
 def fetch_filtered_jobs():
-    print("Scraping 1st Pref (Fresher Full-Time) and 2nd Pref (Internship) roles...")
+    print("Scraping fresh job listings with rate-limit delays...")
     all_jobs = []
     
-    # Prioritized Query Matrix
     search_queries = [
-        # 1st Preference: Full-Time Fresher & Entry-Level Roles
-        {"term": "Graduate Engineer Trainee Python", "location": "Hyderabad, India"},
-        {"term": "Associate Software Engineer Python", "location": "Hyderabad, India"},
-        {"term": "Junior Python Developer", "location": "Hyderabad, India"},
-        {"term": "Junior Python Developer", "location": "Remote"},
-        {"term": "Python Developer Entry Level", "location": "Hyderabad, India"},
-        {"term": "Python Developer Entry Level", "location": "Remote"},
-        {"term": "FastAPI Developer", "location": "Hyderabad, India"},
-        
-        # 2nd Preference: Internships
+        {"term": "Python Developer", "location": "Hyderabad, India"},
+        {"term": "FastAPI Developer", "location": "Remote"},
         {"term": "Python Intern", "location": "Hyderabad, India"},
-        {"term": "Python Intern", "location": "Remote"},
-        {"term": "FastAPI Intern", "location": "Remote"}
+        {"term": "Graduate Engineer Trainee Python", "location": "India"}
     ]
 
     for q in search_queries:
         try:
+            print(f"Fetching: '{q['term']}' in '{q['location']}'...")
             jobs = scrape_jobs(
-                site_name=["linkedin", "indeed", "glassdoor"],
+                site_name=["indeed", "linkedin"],
                 search_term=q["term"],
                 location=q["location"],
-                results_wanted=10,
-                hours_old=48,
+                results_wanted=6,
+                hours_old=72,
                 country_indeed='india',
                 fetch_description=True
             )
             if not jobs.empty:
                 all_jobs.append(jobs)
+            time.sleep(2.5)  # Pause to avoid HTTP 429 rate limits
         except Exception as e:
-            print(f"Notice ({q['term']}): {e}")
+            print(f"Notice for '{q['term']}': {e}")
 
     if not all_jobs:
         return pd.DataFrame()
@@ -141,7 +128,7 @@ def fetch_filtered_jobs():
         
         score, status, matched_skills, role_type = evaluate_job(title, desc, location)
         
-        if score >= 40.0:
+        if score >= 35.0:
             row_dict = row.to_dict()
             row_dict['match_score'] = score
             row_dict['role_type'] = role_type
@@ -150,7 +137,6 @@ def fetch_filtered_jobs():
 
     scored_df = pd.DataFrame(scored_jobs)
     if not scored_df.empty:
-        # Sort by best match score (Full-time freshers naturally rank highest)
         scored_df.sort_values(by='match_score', ascending=False, inplace=True)
     return scored_df
 
@@ -275,7 +261,7 @@ async def main():
             ])
             await bot.send_message(chat_id=CHAT_ID, text=msg_text, parse_mode="Markdown", reply_markup=keyboard)
 
-        print(f"Sent {sent_count} prioritized fresher/internship roles to Telegram.")
+        print(f"Sent {sent_count} fresh roles to Telegram.")
 
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CallbackQueryHandler(handle_callback))
