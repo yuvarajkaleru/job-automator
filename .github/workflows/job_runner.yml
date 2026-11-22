@@ -29,7 +29,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install python-jobspy python-telegram-bot pandas
+          pip install python-jobspy python-telegram-bot pandas scikit-learn
           npm install -g @anthropic-ai/claude-code
 
       - name: Execute Search & Poll Webhooks
