@@ -28,47 +28,64 @@ cursor.execute("""
 """)
 conn.commit()
 
-# 2. Multi-Role & Multi-Region Scraper Engine (FastAPI, Python SDE, Full-Stack)
+# 2. Comprehensive Multi-Source Scraper Engine (Fresh Jobs <24h & Direct Portals)
 def fetch_top_jobs():
-    print("Starting multi-role job search (FastAPI, Python SDE, Full-Stack)...")
+    print("Starting deep multi-source job search (<24h fresh postings)...")
     all_jobs = []
 
-    # Search matrix: Hyderabad + Remote (India & International)
+    # Comprehensive matrix covering direct portals, key skills, and target locations
     search_queries = [
-        {"term": "FastAPI Developer", "location": "Hyderabad, India"},
-        {"term": "FastAPI Developer", "location": "Remote"},
+        # FastAPI & Backend Specifics
+        {"term": "FastAPI", "location": "Hyderabad, India"},
+        {"term": "FastAPI", "location": "Remote"},
+        {"term": "Python Backend Engineer", "location": "Hyderabad, India"},
+        {"term": "Python Backend Engineer", "location": "Remote"},
+        {"term": "Python Backend Intern", "location": "India"},
+        
+        # Python Full-Stack (HTML/CSS/JS)
         {"term": "Python Full Stack Developer", "location": "Hyderabad, India"},
         {"term": "Python Full Stack Developer", "location": "Remote"},
-        {"term": "Python Software Engineer", "location": "Hyderabad, India"},
-        {"term": "Python Developer Intern", "location": "India"},
-        {"term": "Python Developer Intern", "location": "Remote"}
+        
+        # Broader SDE & Related Tech Stack
+        {"term": "Python Developer", "location": "Hyderabad, India"},
+        {"term": "Python Developer", "location": "Remote"},
+        {"term": "Django OR Flask", "location": "Hyderabad, India"},
+        {"term": "REST API Python", "location": "Remote"},
+        
+        # Direct Company Career Portals (Greenhouse, Lever, Workday)
+        {"term": "site:greenhouse.io Python", "location": "Remote"},
+        {"term": "site:lever.co Python", "location": "Remote"},
+        {"term": "site:myworkdayjobs.com Python", "location": "Remote"}
     ]
 
     for q in search_queries:
         try:
             print(f"Scraping query: '{q['term']}' in '{q['location']}'...")
             jobs = scrape_jobs(
-                site_name=["linkedin", "indeed", "glassdoor"],
+                site_name=["linkedin", "indeed", "glassdoor", "zip_recruiter"],
                 search_term=q["term"],
                 location=q["location"],
-                results_wanted=5,
-                hours_old=72,
-                country_indeed='india'
+                results_wanted=10,
+                hours_old=24,  # Strict <24 hour freshness filter
+                country_indeed='india',
+                fetch_description=True
             )
             if not jobs.empty:
                 all_jobs.append(jobs)
         except Exception as e:
-            print(f"Error scraping '{q['term']}': {e}")
+            print(f"Notice for search '{q['term']}': {e}")
 
     if all_jobs:
         combined_df = pd.concat(all_jobs, ignore_index=True)
+        # Deduplicate across multiple sources by job URL
         combined_df.drop_duplicates(subset=['job_url'], inplace=True)
-        print(f"Total unique matching jobs found: {len(combined_df)}")
+        print(f"Total fresh matching jobs found: {len(combined_df)}")
         return combined_df
     else:
+        print("No new jobs found in the last 24 hours across sources.")
         return pd.DataFrame()
 
-# 3. Resume Tailoring Engine using Kaleru Yuvaraj's Resume Context
+# 3. Resume Tailoring Engine using Kaleru Yuvaraj's Profile Context
 def generate_tailored_resume(job_title, company, description):
     master_resume = ""
     if os.path.exists("master_resume.md"):
@@ -109,7 +126,7 @@ def generate_tailored_resume(job_title, company, description):
     )
     return result.stdout
 
-# 4. Telegram Interactive Webhook Callbacks
+# 4. Telegram Interactive Callbacks
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -167,9 +184,15 @@ async def main():
                 continue
 
             new_jobs_count += 1
-            title = str(row.get('title', 'Python / Full Stack Developer'))
+            title = str(row.get('title', 'Python / Backend Developer'))
             company = str(row.get('company', 'Unknown Company'))
             location = str(row.get('location', 'Hyderabad / Remote'))
+            site = str(row.get('site', 'Direct Web'))
+            date_posted = str(row.get('date_posted', 'Just Posted'))
+            salary = f"{row.get('min_amount', '')} - {row.get('max_amount', '')} {row.get('currency', '')}".strip()
+            if salary == "-":
+                salary = "Not Specified"
+
             description = str(row.get('description', ''))
 
             cursor.execute(
@@ -182,8 +205,11 @@ async def main():
                 f"⚡ *{title}*\n"
                 f"🏢 *Company:* {company}\n"
                 f"📍 *Location:* {location}\n"
-                f"👤 *Target:* Python/FastAPI/Full-Stack (2027 Grad)\n"
-                f"🔗 [View Job Posting]({job_url})"
+                f"🌐 *Source:* {site.capitalize()}\n"
+                f"🕒 *Posted:* {date_posted}\n"
+                f"💰 *Salary:* {salary}\n"
+                f"👤 *Target:* Python/FastAPI/Full-Stack (2027 Grad)\n\n"
+                f"🔗 [Apply Directly]({job_url})"
             )
             
             keyboard = InlineKeyboardMarkup([
@@ -195,7 +221,7 @@ async def main():
             
             await bot.send_message(chat_id=CHAT_ID, text=msg_text, parse_mode="Markdown", reply_markup=keyboard)
 
-        print(f"Sent {new_jobs_count} targeted roles to Telegram.")
+        print(f"Sent {new_jobs_count} fresh targeted roles to Telegram.")
 
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CallbackQueryHandler(handle_callback))
