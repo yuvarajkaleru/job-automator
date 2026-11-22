@@ -28,7 +28,6 @@ cursor.execute("""
 """)
 conn.commit()
 
-# Yuvaraj's Core Resume Context for Deep Skill Verification
 RESUME_TEXT = """
 Kaleru Yuvaraj Computer Science & Business Systems B.Tech 2027 expected GITAM University.
 Backend Developer Python FastAPI REST API Pydantic JWT RBAC PostgreSQL SQLAlchemy SQLite Docker AWS Vercel Linux.
@@ -43,18 +42,20 @@ CORE_SKILLS = [
     "html", "css", "javascript", "pandas", "numpy", "streamlit"
 ]
 
-# 2. Strict Fresher/Junior Validation & Skill Match Engine
+# 2. Crash-Proof Fresher/Junior Validation Engine
 def evaluate_job(job_title, job_description):
     title_lower = job_title.lower()
     desc_lower = job_description.lower()
 
-    # STRICT EXCLUSIONS: Instantly drop Senior/Experienced roles
+    # STRICT EXCLUSIONS: Instantly drop Senior/Experienced titles
     senior_terms = [
-        "senior", "sr.", "sr ", "lead", "principal", "manager", 
+        "senior", "sr.", "sr", "lead", "principal", "manager", 
         "architect", "staff", "head of", "director", "tech lead"
     ]
-    if any(re.search(r'\b' + re.escape(term) + r'\b', title_lower) for term in senior_terms):
-        return 0.0, "Senior Title Excluded", []
+    
+    for term in senior_terms:
+        if re.search(r'\b' + re.escape(term) + r'\b', title_lower):
+            return 0.0, "Senior Title Excluded", []
 
     # STRICT EXCLUSIONS: Drop 2+ years experience requirements
     exp_patterns = [
@@ -62,20 +63,20 @@ def evaluate_job(job_title, job_description):
         r'2\s*to\s*\d\s*years', r'3\s*to\s*\d\s*years', r'minimum\s*2\s*years', r'minimum\s*3\s*years'
     ]
     if any(re.search(pattern, desc_lower) for pattern in exp_patterns):
-        return 0.0, "Experience Requirement Exceeded", []
+        return 0.0, "Experience Exceeded", []
 
-    # Count matching skills from Yuvaraj's resume
     matched_skills = [skill for skill in CORE_SKILLS if re.search(r'\b' + re.escape(skill) + r'\b', desc_lower)]
     
-    # TF-IDF Cosine Similarity calculation
-    try:
-        vectorizer = TfidfVectorizer(stop_words='english')
-        tfidf_matrix = vectorizer.fit_transform([RESUME_TEXT, job_description])
-        similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
-    except Exception:
-        similarity = 0.3
+    # Safe TF-IDF calculation
+    similarity = 0.3
+    if len(job_description.strip()) > 30:
+        try:
+            vectorizer = TfidfVectorizer(stop_words='english')
+            tfidf_matrix = vectorizer.fit_transform([RESUME_TEXT, job_description])
+            similarity = float(cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0])
+        except Exception:
+            similarity = 0.3
 
-    # Boost rating for explicit Fresher/Junior/Intern terms
     junior_boost = 0.0
     if any(term in title_lower for term in ["intern", "trainee", "junior", "associate", "entry level", "fresher", "2027"]):
         junior_boost += 0.25
@@ -83,12 +84,11 @@ def evaluate_job(job_title, job_description):
     final_score = min(1.0, similarity + junior_boost + (len(matched_skills) * 0.03))
     return round(final_score * 100, 1), "Valid Junior Role", matched_skills
 
-# 3. Scraper Engine (Strictly Fresher & Entry-Level Queries)
+# 3. Targeted Scraper Engine
 def fetch_filtered_jobs():
     print("Scraping entry-level, fresher, and junior roles only...")
     all_jobs = []
     
-    # Exclusively targeted queries for 2027 grads & zero-experience roles
     search_queries = [
         {"term": "Python Intern", "location": "Hyderabad, India"},
         {"term": "Python Intern", "location": "Remote"},
@@ -128,11 +128,10 @@ def fetch_filtered_jobs():
         desc = str(row.get('description', ''))
         score, status, matched_skills = evaluate_job(title, desc)
         
-        # Keep roles with valid score >= 45% and at least 2 matching tech skills
-        if score >= 45.0 and len(matched_skills) >= 2:
+        if score >= 40.0:
             row_dict = row.to_dict()
             row_dict['match_score'] = score
-            row_dict['matched_skills'] = ", ".join(matched_skills[:6]).upper()
+            row_dict['matched_skills'] = ", ".join(matched_skills[:6]).upper() if matched_skills else "PYTHON, BACKEND"
             scored_jobs.append(row_dict)
 
     scored_df = pd.DataFrame(scored_jobs)
@@ -172,7 +171,7 @@ def generate_tailored_resume(job_title, company, description):
     )
     return result.stdout
 
-# 5. Telegram Webhook Listener
+# 5. Telegram Callback Listener
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -210,6 +209,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def main():
     if not TELEGRAM_TOKEN or not CHAT_ID:
+        print("ERROR: Missing secrets.")
         return
 
     bot = Bot(token=TELEGRAM_TOKEN)
