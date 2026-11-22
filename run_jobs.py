@@ -2,18 +2,18 @@
 import sqlite3
 import subprocess
 import asyncio
+import re
 import pandas as pd
 from jobspy import scrape_jobs
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-print(f"DEBUG: TELEGRAM_TOKEN loaded: {bool(TELEGRAM_TOKEN)}")
-print(f"DEBUG: CHAT_ID loaded: {CHAT_ID}")
-
-# 1. Database Initialization
+# 1. Database Setup
 conn = sqlite3.connect("jobs.db")
 cursor = conn.cursor()
 cursor.execute("""
@@ -28,64 +28,119 @@ cursor.execute("""
 """)
 conn.commit()
 
-# 2. Comprehensive Multi-Source Scraper Engine (Fresh Jobs <24h & Direct Portals)
-def fetch_top_jobs():
-    print("Starting deep multi-source job search (<24h fresh postings)...")
-    all_jobs = []
+# Yuvaraj's Core Resume Context for Deep Skill Verification
+RESUME_TEXT = """
+Kaleru Yuvaraj Computer Science & Business Systems B.Tech 2027 expected GITAM University.
+Backend Developer Python FastAPI REST API Pydantic JWT RBAC PostgreSQL SQLAlchemy SQLite Docker AWS Vercel Linux.
+Frontend HTML5 CSS3 JavaScript Responsive Web UI. AI ML Pandas NumPy Streamlit.
+Projects: Customer Support Ticket Management System, AI Interview Platform, FitPulse Health Analytics.
+Certifications: Front-End Web Development E-Cell IIT Roorkee, AWS Basics & Linux KodeKloud.
+"""
 
-    # Comprehensive matrix covering direct portals, key skills, and target locations
+CORE_SKILLS = [
+    "python", "fastapi", "rest api", "pydantic", "jwt", "rbac", 
+    "postgresql", "sqlalchemy", "sqlite", "docker", "aws", 
+    "html", "css", "javascript", "pandas", "numpy", "streamlit"
+]
+
+# 2. Strict Fresher/Junior Validation & Skill Match Engine
+def evaluate_job(job_title, job_description):
+    title_lower = job_title.lower()
+    desc_lower = job_description.lower()
+
+    # STRICT EXCLUSIONS: Instantly drop Senior/Experienced roles
+    senior_terms = [
+        "senior", "sr.", "sr ", "lead", "principal", "manager", 
+        "architect", "staff", "head of", "director", "tech lead"
+    ]
+    if any(re.search(r'\b' + re.escape(term) + r'\b', title_lower) for term in senior_terms):
+        return 0.0, "Senior Title Excluded", []
+
+    # STRICT EXCLUSIONS: Drop 2+ years experience requirements
+    exp_patterns = [
+        r'2\+\s*years', r'3\+\s*years', r'4\+\s*years', r'5\+\s*years', 
+        r'2\s*to\s*\d\s*years', r'3\s*to\s*\d\s*years', r'minimum\s*2\s*years', r'minimum\s*3\s*years'
+    ]
+    if any(re.search(pattern, desc_lower) for pattern in exp_patterns):
+        return 0.0, "Experience Requirement Exceeded", []
+
+    # Count matching skills from Yuvaraj's resume
+    matched_skills = [skill for skill in CORE_SKILLS if re.search(r'\b' + re.escape(skill) + r'\b', desc_lower)]
+    
+    # TF-IDF Cosine Similarity calculation
+    try:
+        vectorizer = TfidfVectorizer(stop_words='english')
+        tfidf_matrix = vectorizer.fit_transform([RESUME_TEXT, job_description])
+        similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+    except Exception:
+        similarity = 0.3
+
+    # Boost rating for explicit Fresher/Junior/Intern terms
+    junior_boost = 0.0
+    if any(term in title_lower for term in ["intern", "trainee", "junior", "associate", "entry level", "fresher", "2027"]):
+        junior_boost += 0.25
+
+    final_score = min(1.0, similarity + junior_boost + (len(matched_skills) * 0.03))
+    return round(final_score * 100, 1), "Valid Junior Role", matched_skills
+
+# 3. Scraper Engine (Strictly Fresher & Entry-Level Queries)
+def fetch_filtered_jobs():
+    print("Scraping entry-level, fresher, and junior roles only...")
+    all_jobs = []
+    
+    # Exclusively targeted queries for 2027 grads & zero-experience roles
     search_queries = [
-        # FastAPI & Backend Specifics
-        {"term": "FastAPI", "location": "Hyderabad, India"},
-        {"term": "FastAPI", "location": "Remote"},
-        {"term": "Python Backend Engineer", "location": "Hyderabad, India"},
-        {"term": "Python Backend Engineer", "location": "Remote"},
-        {"term": "Python Backend Intern", "location": "India"},
-        
-        # Python Full-Stack (HTML/CSS/JS)
-        {"term": "Python Full Stack Developer", "location": "Hyderabad, India"},
-        {"term": "Python Full Stack Developer", "location": "Remote"},
-        
-        # Broader SDE & Related Tech Stack
-        {"term": "Python Developer", "location": "Hyderabad, India"},
-        {"term": "Python Developer", "location": "Remote"},
-        {"term": "Django OR Flask", "location": "Hyderabad, India"},
-        {"term": "REST API Python", "location": "Remote"},
-        
-        # Direct Company Career Portals (Greenhouse, Lever, Workday)
-        {"term": "site:greenhouse.io Python", "location": "Remote"},
-        {"term": "site:lever.co Python", "location": "Remote"},
-        {"term": "site:myworkdayjobs.com Python", "location": "Remote"}
+        {"term": "Python Intern", "location": "Hyderabad, India"},
+        {"term": "Python Intern", "location": "Remote"},
+        {"term": "FastAPI Intern", "location": "Remote"},
+        {"term": "Junior Python Developer", "location": "Hyderabad, India"},
+        {"term": "Junior Python Developer", "location": "Remote"},
+        {"term": "Graduate Engineer Trainee Python", "location": "India"},
+        {"term": "Associate Software Engineer Python", "location": "Hyderabad, India"},
+        {"term": "Python Developer Entry Level", "location": "Remote"}
     ]
 
     for q in search_queries:
         try:
-            print(f"Scraping query: '{q['term']}' in '{q['location']}'...")
             jobs = scrape_jobs(
-                site_name=["linkedin", "indeed", "glassdoor", "zip_recruiter"],
+                site_name=["linkedin", "indeed", "glassdoor"],
                 search_term=q["term"],
                 location=q["location"],
                 results_wanted=10,
-                hours_old=24,  # Strict <24 hour freshness filter
+                hours_old=48,
                 country_indeed='india',
                 fetch_description=True
             )
             if not jobs.empty:
                 all_jobs.append(jobs)
         except Exception as e:
-            print(f"Notice for search '{q['term']}': {e}")
+            print(f"Notice ({q['term']}): {e}")
 
-    if all_jobs:
-        combined_df = pd.concat(all_jobs, ignore_index=True)
-        # Deduplicate across multiple sources by job URL
-        combined_df.drop_duplicates(subset=['job_url'], inplace=True)
-        print(f"Total fresh matching jobs found: {len(combined_df)}")
-        return combined_df
-    else:
-        print("No new jobs found in the last 24 hours across sources.")
+    if not all_jobs:
         return pd.DataFrame()
 
-# 3. Resume Tailoring Engine using Kaleru Yuvaraj's Profile Context
+    df = pd.concat(all_jobs, ignore_index=True)
+    df.drop_duplicates(subset=['job_url'], inplace=True)
+
+    scored_jobs = []
+    for _, row in df.iterrows():
+        title = str(row.get('title', ''))
+        desc = str(row.get('description', ''))
+        score, status, matched_skills = evaluate_job(title, desc)
+        
+        # Keep roles with valid score >= 45% and at least 2 matching tech skills
+        if score >= 45.0 and len(matched_skills) >= 2:
+            row_dict = row.to_dict()
+            row_dict['match_score'] = score
+            row_dict['matched_skills'] = ", ".join(matched_skills[:6]).upper()
+            scored_jobs.append(row_dict)
+
+    scored_df = pd.DataFrame(scored_jobs)
+    if not scored_df.empty:
+        scored_df.sort_values(by='match_score', ascending=False, inplace=True)
+    return scored_df
+
+# 4. Resume Generator (Claude Pro CLI)
 def generate_tailored_resume(job_title, company, description):
     master_resume = ""
     if os.path.exists("master_resume.md"):
@@ -93,25 +148,16 @@ def generate_tailored_resume(job_title, company, description):
             master_resume = f.read()
 
     prompt = f"""
-    You are an expert technical recruiter and resume writer tailoring a resume for Kaleru Yuvaraj (2027 CSBS Graduate).
-    
+    You are an expert technical recruiter tailoring a resume for Kaleru Yuvaraj (2027 CSBS Graduate at GITAM University).
     Target Role: '{job_title}' at '{company}'
-    Target Job Description:
-    {description}
+    Job Description: {description}
+    Master Resume: {master_resume}
 
-    Applicant Master Resume:
-    {master_resume}
-
-    Tailoring Rules:
+    Instructions:
     - Keep output strictly in clean Markdown format.
-    - Highlight core tech stack matching the role: Python, FastAPI, Pydantic, REST APIs, JWT/RBAC, PostgreSQL, SQLAlchemy, AWS, Docker, HTML5, CSS3, JavaScript, Pandas, NumPy, and Streamlit.
-    - Emphasize relevant projects:
-      1. Customer Support Ticket Management System (FastAPI + JWT + RBAC + HTML/CSS/JS + Vercel)
-      2. AI-Powered Interview Assistant (FastAPI + PostgreSQL + PyMuPDF + Sentence Embeddings)
-      3. FitPulse AI/ML Health Analytics (Infosys Springboard Internship)
-    - If full-stack skills are required, highlight the HTML5/CSS3/JavaScript frontend and Vercel deployment experience.
-    - Frame education clearly as B.Tech CSBS (2023-2027) at GITAM University.
-    - Do not invent false experience or change employment dates.
+    - Highlight core tech stack: Python, FastAPI, Pydantic, REST APIs, JWT/RBAC, PostgreSQL, HTML5/CSS3/JavaScript, and AWS.
+    - Emphasize the Ticket Management System (FastAPI + JWT + HTML/CSS/JS + Vercel) and AI Interview Platform.
+    - Frame experience for entry-level, junior, or internship applications without inventing experience.
     """
 
     env_vars = os.environ.copy()
@@ -126,18 +172,16 @@ def generate_tailored_resume(job_title, company, description):
     )
     return result.stdout
 
-# 4. Telegram Interactive Callbacks
+# 5. Telegram Webhook Listener
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
     data_parts = query.data.split(":")
-    action = data_parts[0]
-    job_id = data_parts[1]
+    action, job_id = data_parts[0], data_parts[1]
 
     if action == "app":
-        await query.edit_message_text(text="⏳ **Tailoring resume with Claude Pro for Yuvaraj...**", parse_mode="Markdown")
-        
+        await query.edit_message_text(text="⏳ **Tailoring resume for Yuvaraj with Claude Pro...**", parse_mode="Markdown")
         cursor.execute("SELECT title, company, url, description FROM jobs WHERE id = ?", (job_id,))
         row = cursor.fetchone()
         
@@ -153,10 +197,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_document(
                     chat_id=update.effective_chat.id,
                     document=doc,
-                    caption=f"✅ **Tailored Resume Ready!**\n\n📌 **Role:** {title} at {company}\n🔗 [Apply Directly]({url})",
+                    caption=f"✅ **Tailored Resume Ready!**\n\n📌 **Role:** {title} at {company}\n🔗 [Direct Apply Link]({url})",
                     parse_mode="Markdown"
                 )
-            
             cursor.execute("UPDATE jobs SET status = 'approved' WHERE id = ?", (job_id,))
             conn.commit()
 
@@ -167,14 +210,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def main():
     if not TELEGRAM_TOKEN or not CHAT_ID:
-        print("ERROR: Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID secrets.")
         return
 
     bot = Bot(token=TELEGRAM_TOKEN)
-    df = fetch_top_jobs()
+    df = fetch_filtered_jobs()
 
     if not df.empty:
-        new_jobs_count = 0
+        sent_count = 0
         for _, row in df.iterrows():
             job_url = str(row.get('job_url', ''))
             job_id = str(row['id']) if 'id' in row and pd.notna(row['id']) else str(hash(job_url))
@@ -183,16 +225,13 @@ async def main():
             if cursor.fetchone():
                 continue
 
-            new_jobs_count += 1
-            title = str(row.get('title', 'Python / Backend Developer'))
-            company = str(row.get('company', 'Unknown Company'))
+            sent_count += 1
+            title = str(row.get('title', 'Junior Python Developer'))
+            company = str(row.get('company', 'Company'))
             location = str(row.get('location', 'Hyderabad / Remote'))
-            site = str(row.get('site', 'Direct Web'))
-            date_posted = str(row.get('date_posted', 'Just Posted'))
-            salary = f"{row.get('min_amount', '')} - {row.get('max_amount', '')} {row.get('currency', '')}".strip()
-            if salary == "-":
-                salary = "Not Specified"
-
+            site = str(row.get('site', 'Job Board')).capitalize()
+            score = row.get('match_score', 0)
+            skills = row.get('matched_skills', 'PYTHON, FASTAPI')
             description = str(row.get('description', ''))
 
             cursor.execute(
@@ -202,14 +241,13 @@ async def main():
             conn.commit()
 
             msg_text = (
+                f"🎯 *Match Rating: {score}% (Fresher/Junior)*\n"
                 f"⚡ *{title}*\n"
                 f"🏢 *Company:* {company}\n"
                 f"📍 *Location:* {location}\n"
-                f"🌐 *Source:* {site.capitalize()}\n"
-                f"🕒 *Posted:* {date_posted}\n"
-                f"💰 *Salary:* {salary}\n"
-                f"👤 *Target:* Python/FastAPI/Full-Stack (2027 Grad)\n\n"
-                f"🔗 [Apply Directly]({job_url})"
+                f"🌐 *Source:* {site}\n"
+                f"🛠 *Matched Skills:* `{skills}`\n\n"
+                f"🚀 [1-Click Direct Apply ({site})]({job_url})"
             )
             
             keyboard = InlineKeyboardMarkup([
@@ -218,10 +256,9 @@ async def main():
                     InlineKeyboardButton("❌ Reject", callback_data=f"rej:{job_id}")
                 ]
             ])
-            
             await bot.send_message(chat_id=CHAT_ID, text=msg_text, parse_mode="Markdown", reply_markup=keyboard)
 
-        print(f"Sent {new_jobs_count} fresh targeted roles to Telegram.")
+        print(f"Sent {sent_count} verified junior/fresher roles to Telegram.")
 
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CallbackQueryHandler(handle_callback))
@@ -229,7 +266,6 @@ async def main():
     await app.initialize()
     await app.start()
     await app.updater.start_polling()
-    print("Listening for Telegram clicks for 5 minutes...")
     await asyncio.sleep(300)
     await app.updater.stop()
     await app.stop()
