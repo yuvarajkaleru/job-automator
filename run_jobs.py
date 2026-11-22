@@ -29,7 +29,7 @@ cursor.execute("""
 conn.commit()
 
 RESUME_TEXT = """
-Kaleru Yuvaraj Computer Science & Business Systems B.Tech 2027 expected GITAM University.
+Kaleru Yuvaraj Computer Science & Business Systems B.Tech 2027 expected GITAM University Hyderabad India.
 Backend Developer Python FastAPI REST API Pydantic JWT RBAC PostgreSQL SQLAlchemy SQLite Docker AWS Vercel Linux.
 Frontend HTML5 CSS3 JavaScript Responsive Web UI. AI ML Pandas NumPy Streamlit.
 Projects: Customer Support Ticket Management System, AI Interview Platform, FitPulse Health Analytics.
@@ -42,20 +42,24 @@ CORE_SKILLS = [
     "html", "css", "javascript", "pandas", "numpy", "streamlit"
 ]
 
-# 2. Crash-Proof Fresher/Junior Validation Engine
-def evaluate_job(job_title, job_description):
+# 2. Strict Fresher & Hierarchy Validation Engine
+def evaluate_job(job_title, job_description, location_str):
     title_lower = job_title.lower()
     desc_lower = job_description.lower()
+    loc_lower = location_str.lower()
+
+    # Location Filter: Must be Hyderabad or Remote
+    if not ("hyderabad" in loc_lower or "remote" in loc_lower or "india" in loc_lower):
+        return 0.0, "Outside Location", [], "Excluded"
 
     # STRICT EXCLUSIONS: Instantly drop Senior/Experienced titles
     senior_terms = [
         "senior", "sr.", "sr", "lead", "principal", "manager", 
         "architect", "staff", "head of", "director", "tech lead"
     ]
-    
     for term in senior_terms:
         if re.search(r'\b' + re.escape(term) + r'\b', title_lower):
-            return 0.0, "Senior Title Excluded", []
+            return 0.0, "Senior Title Excluded", [], "Excluded"
 
     # STRICT EXCLUSIONS: Drop 2+ years experience requirements
     exp_patterns = [
@@ -63,11 +67,16 @@ def evaluate_job(job_title, job_description):
         r'2\s*to\s*\d\s*years', r'3\s*to\s*\d\s*years', r'minimum\s*2\s*years', r'minimum\s*3\s*years'
     ]
     if any(re.search(pattern, desc_lower) for pattern in exp_patterns):
-        return 0.0, "Experience Exceeded", []
+        return 0.0, "Experience Exceeded", [], "Excluded"
+
+    # Hierarchy Preference Scoring
+    # 1st Preference: Full-Time Fresher / Graduate / Entry Level
+    # 2nd Preference: Internship
+    role_type = "2nd Pref: Internship" if "intern" in title_lower or "internship" in title_lower else "1st Pref: Fresher Full-Time"
+    pref_boost = 0.30 if role_type == "1st Pref: Fresher Full-Time" else 0.15
 
     matched_skills = [skill for skill in CORE_SKILLS if re.search(r'\b' + re.escape(skill) + r'\b', desc_lower)]
     
-    # Safe TF-IDF calculation
     similarity = 0.3
     if len(job_description.strip()) > 30:
         try:
@@ -77,27 +86,29 @@ def evaluate_job(job_title, job_description):
         except Exception:
             similarity = 0.3
 
-    junior_boost = 0.0
-    if any(term in title_lower for term in ["intern", "trainee", "junior", "associate", "entry level", "fresher", "2027"]):
-        junior_boost += 0.25
+    final_score = min(1.0, similarity + pref_boost + (len(matched_skills) * 0.03))
+    return round(final_score * 100, 1), "Valid Role", matched_skills, role_type
 
-    final_score = min(1.0, similarity + junior_boost + (len(matched_skills) * 0.03))
-    return round(final_score * 100, 1), "Valid Junior Role", matched_skills
-
-# 3. Targeted Scraper Engine
+# 3. Targeted Scraper Engine (1st Preference: Fresher Full-Time, 2nd Preference: Internships)
 def fetch_filtered_jobs():
-    print("Scraping entry-level, fresher, and junior roles only...")
+    print("Scraping 1st Pref (Fresher Full-Time) and 2nd Pref (Internship) roles...")
     all_jobs = []
     
+    # Prioritized Query Matrix
     search_queries = [
-        {"term": "Python Intern", "location": "Hyderabad, India"},
-        {"term": "Python Intern", "location": "Remote"},
-        {"term": "FastAPI Intern", "location": "Remote"},
+        # 1st Preference: Full-Time Fresher & Entry-Level Roles
+        {"term": "Graduate Engineer Trainee Python", "location": "Hyderabad, India"},
+        {"term": "Associate Software Engineer Python", "location": "Hyderabad, India"},
         {"term": "Junior Python Developer", "location": "Hyderabad, India"},
         {"term": "Junior Python Developer", "location": "Remote"},
-        {"term": "Graduate Engineer Trainee Python", "location": "India"},
-        {"term": "Associate Software Engineer Python", "location": "Hyderabad, India"},
-        {"term": "Python Developer Entry Level", "location": "Remote"}
+        {"term": "Python Developer Entry Level", "location": "Hyderabad, India"},
+        {"term": "Python Developer Entry Level", "location": "Remote"},
+        {"term": "FastAPI Developer", "location": "Hyderabad, India"},
+        
+        # 2nd Preference: Internships
+        {"term": "Python Intern", "location": "Hyderabad, India"},
+        {"term": "Python Intern", "location": "Remote"},
+        {"term": "FastAPI Intern", "location": "Remote"}
     ]
 
     for q in search_queries:
@@ -126,16 +137,20 @@ def fetch_filtered_jobs():
     for _, row in df.iterrows():
         title = str(row.get('title', ''))
         desc = str(row.get('description', ''))
-        score, status, matched_skills = evaluate_job(title, desc)
+        location = str(row.get('location', 'Hyderabad, India'))
+        
+        score, status, matched_skills, role_type = evaluate_job(title, desc, location)
         
         if score >= 40.0:
             row_dict = row.to_dict()
             row_dict['match_score'] = score
-            row_dict['matched_skills'] = ", ".join(matched_skills[:6]).upper() if matched_skills else "PYTHON, BACKEND"
+            row_dict['role_type'] = role_type
+            row_dict['matched_skills'] = ", ".join(matched_skills[:6]).upper() if matched_skills else "PYTHON, FASTAPI"
             scored_jobs.append(row_dict)
 
     scored_df = pd.DataFrame(scored_jobs)
     if not scored_df.empty:
+        # Sort by best match score (Full-time freshers naturally rank highest)
         scored_df.sort_values(by='match_score', ascending=False, inplace=True)
     return scored_df
 
@@ -147,7 +162,7 @@ def generate_tailored_resume(job_title, company, description):
             master_resume = f.read()
 
     prompt = f"""
-    You are an expert technical recruiter tailoring a resume for Kaleru Yuvaraj (2027 CSBS Graduate at GITAM University).
+    You are an expert technical recruiter tailoring a resume for Kaleru Yuvaraj (2027 CSBS Graduate at GITAM University, Hyderabad).
     Target Role: '{job_title}' at '{company}'
     Job Description: {description}
     Master Resume: {master_resume}
@@ -226,11 +241,12 @@ async def main():
                 continue
 
             sent_count += 1
-            title = str(row.get('title', 'Junior Python Developer'))
+            title = str(row.get('title', 'Junior Developer'))
             company = str(row.get('company', 'Company'))
             location = str(row.get('location', 'Hyderabad / Remote'))
             site = str(row.get('site', 'Job Board')).capitalize()
             score = row.get('match_score', 0)
+            role_type = row.get('role_type', '1st Pref: Fresher Full-Time')
             skills = row.get('matched_skills', 'PYTHON, FASTAPI')
             description = str(row.get('description', ''))
 
@@ -241,7 +257,8 @@ async def main():
             conn.commit()
 
             msg_text = (
-                f"🎯 *Match Rating: {score}% (Fresher/Junior)*\n"
+                f"🌟 *[{role_type}]*\n"
+                f"🎯 *Match Rating: {score}%*\n"
                 f"⚡ *{title}*\n"
                 f"🏢 *Company:* {company}\n"
                 f"📍 *Location:* {location}\n"
@@ -258,7 +275,7 @@ async def main():
             ])
             await bot.send_message(chat_id=CHAT_ID, text=msg_text, parse_mode="Markdown", reply_markup=keyboard)
 
-        print(f"Sent {sent_count} verified junior/fresher roles to Telegram.")
+        print(f"Sent {sent_count} prioritized fresher/internship roles to Telegram.")
 
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CallbackQueryHandler(handle_callback))
