@@ -1,0 +1,4 @@
+jobs.db
+generated/
+__pycache__/
+.env

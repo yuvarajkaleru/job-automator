@@ -10,6 +10,8 @@ Schedule (IST): scans at 8 AM, 11 AM, 2 PM, 5 PM, 8 PM, 11 PM. Each scan only as
 sites for jobs posted since the previous scan, so the 8 AM scan is the overnight digest
 (everything posted 11 PM - 8 AM). Freshest jobs are screened and sent first.
 
+Telegram commands: /scan (search now) · /status · /why · /stats · /export · /help
+
 Modes
   python run_jobs.py scrape     -> handle pending taps, find new jobs, listen LISTEN_SECONDS
   python run_jobs.py approvals  -> only handle taps queued in Telegram since the last run
@@ -80,14 +82,18 @@ GRAD_YEAR = env("GRAD_YEAR", 2027)
 
 SITES = env("SITES", ["linkedin", "indeed", "naukri", "google"])
 SEARCH_TERMS = env("SEARCH_TERMS", [
-    "FastAPI Developer",
-    "Python Backend Developer",
+    # the first 6 are also used on LinkedIn (strictest site), so the most valuable come first
     "Python Developer Fresher",
+    "FastAPI Developer",
+    "SDE 1 Python",
+    "Python Backend Developer",
+    "Software Engineer Fresher Python",
+    "Python Intern",
+    # the rest run on Naukri / Indeed / Google
+    "Software Development Engineer Fresher",
     "Junior Python Developer",
     "Python Full Stack Developer",
-    "Python Intern",
     "Backend Developer Intern",
-    "Software Engineer Fresher Python",
     "Graduate Engineer Trainee",
     "Associate Software Engineer Python",
 ])
@@ -106,7 +112,7 @@ BACKUP_SKIP_MINUTES = env("BACKUP_SKIP_MINUTES", 120)  # GitHub backup cron skip
 ALLOW_REMOTE = env("ALLOW_REMOTE", False)          # you asked for Hyderabad only
 REQUIRE_FULL_JD = env("REQUIRE_FULL_JD", True)    # skip jobs whose JD is too short to verify
 MIN_JD_CHARS = env("MIN_JD_CHARS", 250)
-FILTER_VERSION = 4   # bump when filters change: jobs filtered by older rules get re-checked
+FILTER_VERSION = 5   # bump when filters change: jobs filtered by older rules get re-checked
 REJECT_MIN_YEARS = env("REJECT_MIN_YEARS", 2.0)   # JD asks >= this many years -> rejected
 WARN_MIN_YEARS = env("WARN_MIN_YEARS", 1.0)       # JD asks >= this -> shown with a warning
 MIN_SCORE = env("MIN_SCORE", 40.0)
@@ -457,6 +463,7 @@ SENIOR_TITLE = re.compile(
 TECH_TITLE = re.compile(r"python|fastapi|django|flask|backend|back[- ]end|full[- ]?stack|software|developer|"
                         r"engineer|\bsde\b|programmer|coder|trainee|intern|apprentice|graduate|associate|"
                         r"technolog|member of technical staff|\bmts\b|\bget\b|api|web")
+SDE_TITLE = re.compile(r"\bsde\b|software (development )?engineer|software developer|backend (developer|engineer)")
 PY_TITLE = re.compile(r"python|fastapi|django|flask|backend|back[- ]end|full[- ]?stack")
 FRESHER_TITLE = re.compile(r"\bintern|trainee|fresher|graduate|junior|\bjr\.?\b|entry|apprentice|associate|\bget\b")
 NON_TECH_TITLE = re.compile(r"sales|marketing|telecaller|bpo|voice process|customer support executive|"
@@ -660,6 +667,8 @@ def evaluate_job(job: Job):
         pts += 10
     elif "python" in title_l:
         pts += 6
+    elif SDE_TITLE.search(title_l):
+        pts += 5      # fresher SDE / software engineer roles (Python is still required in the JD)
     if FRESHER_WORDS.search(desc_l) or "entry" in s(job.job_level).lower():
         pts += 8
     if batch_ok:
@@ -1535,7 +1544,16 @@ async def send_export(bot, conn):
                             caption=f"{len(rows)} jobs (open in Excel / Google Sheets)")
 
 
-HELP = ("🤖 <b>Commands</b>\n/stats — counts and why jobs were filtered\n/why — last 20 filtered jobs and the reason "
+SCAN_SLOTS_IST = [8, 11, 14, 17, 20, 23]     # same times as the Cloudflare relay / GitHub backup
+SCAN_COOLDOWN_MINUTES = env("SCAN_COOLDOWN_MINUTES", 10)
+
+BOT_COMMANDS = [("scan", "Search for new jobs right now"), ("status", "Last scan, next scan, today's numbers"),
+                ("why", "Recently filtered jobs and the reason"), ("stats", "Totals and top filter reasons"),
+                ("export", "CSV tracker of your jobs"), ("help", "How the bot works")]
+
+HELP = ("🤖 <b>Commands</b>\n/scan — search for new jobs right now (/scan now skips the 10-min cooldown)\n"
+        "/status — last scan, next scheduled scan, today's numbers\n"
+        "/stats — counts and why jobs were filtered\n/why — last 20 filtered jobs and the reason "
         "(/why 50, /why naukri, /why stale)\n"
         "/export — CSV tracker of your jobs\n"
         "/help — this message\n\nOn each job: <b>Apply</b> makes a tailored resume (PDF + DOCX) and cover letter, "
@@ -1579,8 +1597,61 @@ async def handle_update(bot, conn, update):
             await send_why(bot, conn, update.message.text.split()[1:])
         elif cmd == "/export":
             await send_export(bot, conn)
+        elif cmd == "/scan":
+            await manual_scan(bot, conn, force="now" in update.message.text.lower() or "force" in update.message.text.lower())
+        elif cmd == "/status":
+            await send_status(bot, conn)
         elif cmd in ("/help", "/start"):
             await bot.send_message(CHAT_ID, HELP, parse_mode="HTML")
+
+
+def next_slot_ist(t: datetime | None = None) -> datetime:
+    t = t or now_ist()
+    for day in (0, 1):
+        for h in SCAN_SLOTS_IST:
+            cand = (t + timedelta(days=day)).replace(hour=h, minute=0, second=0, microsecond=0)
+            if cand > t:
+                return cand
+    return t
+
+
+async def manual_scan(bot, conn, force: bool = False):
+    last = parse_utc(meta_get(conn, "last_scan_at", ""))
+    if last and not force:
+        mins = (datetime.now(timezone.utc) - last).total_seconds() / 60
+        if mins < SCAN_COOLDOWN_MINUTES:
+            await bot.send_message(CHAT_ID, f"⏱ A scan ran {mins:.0f} min ago, so there is little new yet. "
+                                            f"Send <code>/scan now</code> to scan anyway.", parse_mode="HTML")
+            return
+    await bot.send_message(CHAT_ID, "🔎 <b>Scanning now…</b> results in about 3–6 minutes.", parse_mode="HTML")
+    await scrape_and_alert(bot, conn, manual=True)
+
+
+async def send_status(bot, conn):
+    last = parse_utc(meta_get(conn, "last_scan_at", ""))
+    last_txt = last.astimezone(IST).strftime("%d %b, %I:%M %p") if last else "never"
+    nxt = next_slot_ist()
+    today = now_ist().date()
+    start_utc = datetime.combine(today, datetime.min.time(), IST).astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    counts = {r["status"]: r["c"] for r in conn.execute(
+        "SELECT status, COUNT(*) c FROM jobs WHERE updated_at >= ? GROUP BY status", (start_utc,))}
+    text = (f"📡 <b>Status</b>\nLast scan: {last_txt}\nNext scheduled scan: {nxt.strftime('%I:%M %p').lstrip('0')}"
+            f"{' tomorrow' if nxt.date() != today else ''}\n\n<b>Today</b>: {counts.get('sent', 0)} waiting · "
+            f"{counts.get('tailored', 0)} tailored · {counts.get('applied', 0)} applied · {counts.get('skipped', 0)} skipped · "
+            f"{counts.get('filtered', 0)} filtered\n\nSend /scan to search right now.")
+    await bot.send_message(CHAT_ID, text, parse_mode="HTML")
+
+
+async def register_commands(bot, conn):
+    """Show the commands in Telegram's '/' menu (once)."""
+    if meta_get(conn, "commands_v") == "2":
+        return
+    try:
+        from telegram import BotCommand
+        await bot.set_my_commands([BotCommand(c, d) for c, d in BOT_COMMANDS])
+        meta_set(conn, "commands_v", "2")
+    except Exception as e:
+        log(f"set_my_commands failed: {str(e)[:80]}")
 
 
 async def process_updates(bot, conn, seconds: int = 0):
@@ -1631,7 +1702,7 @@ def split_lists(jobs: list) -> tuple[list, list]:
     return recent, earlier
 
 
-async def scrape_and_alert(bot, conn):
+async def scrape_and_alert(bot, conn, manual: bool = False):
     scan_started = now_iso()
     hours, gap = compute_window(conn)
     overnight = gap is not None and gap >= OVERNIGHT_MIN_GAP_HOURS
@@ -1711,6 +1782,10 @@ async def scrape_and_alert(bot, conn):
 
     meta_set(conn, "last_scan_at", scan_started)   # next scan looks back to the start of this one
     log(f"Run stats: {stats} | window {hours}h | reasons: {reasons}")
+    if not (stats["sent"] or stats["filtered"] or stats["ai_rejected"]):
+        # always report, so a quiet scan is never mistaken for a scan that did not run
+        await bot.send_message(CHAT_ID, f"🔎 Scan done at {now_ist().strftime('%I:%M %p').lstrip('0')}: "
+                                        f"{stats['scraped']} listings checked, nothing new since the last scan.")
     if SEND_RUN_SUMMARY and (stats["sent"] or stats["filtered"] or stats["ai_rejected"]):
         top = ", ".join(f"{k} {v}" for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])[:6])
         msg = (f"🔎 Scan done ({hours}h window): {stats['scraped']} listings · {stats['seen']} already seen · "
@@ -1792,11 +1867,12 @@ async def main(mode: str):
             await bot.delete_webhook(drop_pending_updates=False)   # polling needs no webhook
         except Exception:
             pass
+        await register_commands(bot, conn)
         if mode == "approvals":
             await process_updates(bot, conn, 0)
         elif mode == "listen":
             log("Listening forever (Ctrl+C to stop)…")
-            slots = {8, 11, 14, 17, 20, 23}                       # same IST schedule as the cloud
+            slots = set(SCAN_SLOTS_IST)                           # same IST schedule as the cloud
             last_slot = None
             while True:
                 t = now_ist()
@@ -1851,6 +1927,12 @@ def selftest():
         ("Python Specialist", "Hyderabad", "Freshers. Develop python apps. Python, python." + filler, True),
         ("Associate - Python", "Hyderabad", "0-1 years." + filler, True),
         ("Data Entry Operator", "Hyderabad", "", False),
+        ("SDE 1", "Hyderabad", "Freshers / 0-1 years. Backend services in Python." + filler, True),
+        ("Software Development Engineer", "Hyderabad", "2026/2027 passouts. Python backend, REST APIs." + filler, True),
+        ("SDE-I (Backend)", "Hyderabad", "Entry level. Python, FastAPI." + filler, True),
+        ("SDE 2", "Hyderabad", filler, False),
+        ("Software Development Engineer III", "Hyderabad", filler, False),
+        ("SDE - Java", "Hyderabad", "Java, Spring Boot, microservices, 0-1 years. " * 10, False),
         ("Software Developer (naukri 0-2)", "Hyderabad", "Short snippet.", True),
         ("Software Developer (naukri 3-6)", "Hyderabad", "Short snippet.", False),
         ("Software Developer (no range)", "Hyderabad", "Short snippet.", False),
