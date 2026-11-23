@@ -108,7 +108,7 @@ BACKUP_SKIP_MINUTES = env("BACKUP_SKIP_MINUTES", 120)  # GitHub backup cron skip
 ALLOW_REMOTE = env("ALLOW_REMOTE", False)          # you asked for Hyderabad only
 REQUIRE_FULL_JD = env("REQUIRE_FULL_JD", True)    # skip jobs whose JD is too short to verify
 MIN_JD_CHARS = env("MIN_JD_CHARS", 250)
-FILTER_VERSION = 2   # bump when filters change: jobs filtered by older rules get re-checked
+FILTER_VERSION = 3   # bump when filters change: jobs filtered by older rules get re-checked
 REJECT_MIN_YEARS = env("REJECT_MIN_YEARS", 2.0)   # JD asks >= this many years -> rejected
 WARN_MIN_YEARS = env("WARN_MIN_YEARS", 1.0)       # JD asks >= this -> shown with a warning
 MIN_SCORE = env("MIN_SCORE", 40.0)
@@ -119,6 +119,12 @@ USE_AI_SCREEN = env("USE_AI_SCREEN", True)
 AI_SCREEN_BATCH = env("AI_SCREEN_BATCH", 6)
 AI_SCREEN_MAX = env("AI_SCREEN_MAX", 24)
 SCRAPE_DELAY = (env("SCRAPE_DELAY_MIN", 1.5), env("SCRAPE_DELAY_MAX", 3.0))
+LINKEDIN_DELAY = (env("LINKEDIN_DELAY_MIN", 4.0), env("LINKEDIN_DELAY_MAX", 7.0))  # LinkedIn is strictest
+LINKEDIN_MAX_TERMS = env("LINKEDIN_MAX_TERMS", 6)  # fewer LinkedIn searches = far fewer blocks
+MAX_SITE_ERRORS = env("MAX_SITE_ERRORS", 2)        # stop asking a site once it starts refusing
+COMPANIES_PATH = Path(env("COMPANIES_PATH", str(BASE_DIR / "companies.txt")))
+BOT_USER_AGENT = "yuvaraj-job-alert-bot/1.0 (personal job search; github.com/yuvarajkaleru)"
+SITE_HEALTH: dict = {}                             # per-run report shown in the Telegram summary
 CLAUDE_BIN = env("CLAUDE_BIN", "claude")
 CLAUDE_MODEL = env("CLAUDE_MODEL", "")            # blank = your plan's default
 CLAUDE_TIMEOUT = env("CLAUDE_TIMEOUT", 300)
@@ -313,6 +319,13 @@ def already_seen(conn, jid, fp) -> bool:
 
 
 def save_job(conn, job: "Job", status: str, reason: str = ""):
+    extra = []
+    if job.experience_range and job.experience_range not in job.description:
+        extra.append(f"Experience: {job.experience_range}")
+    if job.skills and job.skills not in job.description:
+        extra.append(f"Key skills: {job.skills}")
+    if extra:
+        job.description = (job.description + "\n\n" + "\n".join(extra)).strip()
     conn.execute(
         """INSERT OR REPLACE INTO jobs (id, fingerprint, title, company, location, url, site,
            description, score, role_type, matched_skills, notes, ai_json, status, reason,
@@ -350,6 +363,7 @@ class Job:
     salary: str = ""
     posted_on: str = ""                              # YYYY-MM-DD from the job board
     short_jd: bool = False                           # board gave no full description
+    skills: str = ""                                 # Naukri "key skills" list
     score: float = 0.0
     role_type: str = ""
     matched_skills: list = field(default_factory=list)
@@ -385,8 +399,13 @@ def required_min_years(text: str):
     """Return (max of all minimum-years requirements found, evidence snippet)."""
     t = normalize_text(text)
     best, evidence = None, ""
-    for pat in EXP_PATTERNS:
+    covered = []   # spans of ranges like "0-2 years": their upper number must not count as a minimum
+    for i, pat in enumerate(EXP_PATTERNS):
         for m in pat.finditer(t):
+            if i > 0 and any(m.start() < ce and cs < m.end() for cs, ce in covered):
+                continue
+            if i == 0:
+                covered.append((m.start(), m.end()))
             start, end = max(0, m.start() - 70), min(len(t), m.end() + 70)
             window = t[start:end]
             if not EXP_CONTEXT.search(window) or EXP_IGNORE_CONTEXT.search(window):
@@ -423,6 +442,17 @@ BATCH_CONTEXT = re.compile(r"batch|pass[\s-]?outs?|passed out|graduat|year of pa
 FRESHER_WORDS = re.compile(r"\bfreshers?\b|entry[\s-]level|0\s*-\s*1\s*years?|0\s*-\s*2\s*years?|"
                            r"no experience|recent graduates?|final[\s-]year|pre[\s-]final|campus|"
                            r"\b0\s*years?\b|graduate (?:engineer )?trainee")
+
+
+def listed_experience_min(text: str):
+    """'0-2 Yrs' -> 0, '3-5 Yrs' -> 3, 'Fresher' -> 0, '' -> None."""
+    t = s(text).lower()
+    if not t:
+        return None
+    if "fresher" in t:
+        return 0.0
+    m = re.search(r"(\d{1,2}(?:\.\d)?)", t)
+    return float(m.group(1)) if m else None
 
 
 def is_hyderabad_location(location: str) -> bool:
@@ -513,12 +543,25 @@ def evaluate_job(job: Job):
         return False, f"Listed as {job.job_level}"
 
     # --- full JD must exist ---------------------------------------------------------
+    # --- experience range listed by the board (Naukri: "0-2 Yrs", "Fresher") ---------
+    listed_min = listed_experience_min(job.experience_range)
+    if listed_min is not None and listed_min >= REJECT_MIN_YEARS:
+        return False, f"Needs {listed_min:g}+ yrs (listed: {job.experience_range})"
+    skills_l = job.skills.lower()
+
     if len(desc.strip()) < MIN_JD_CHARS:
-        # No full JD from the board. Keep only clear fresher/intern Python-ish titles, flagged.
-        if REQUIRE_FULL_JD and not (PY_TITLE.search(title_l) and FRESHER_TITLE.search(title_l)):
+        # No full JD from the board. Keep it only when fresher eligibility is still verifiable:
+        #  (a) the board lists the experience range (Naukri) and it is Python work, or
+        #  (b) the title is clearly a fresher/intern Python role.
+        python_work = bool(PY_TITLE.search(title_l)) or bool(re.search(r"python|fastapi|django|flask", skills_l + " " + desc_l))
+        verified_by_range = listed_min is not None and python_work
+        if REQUIRE_FULL_JD and not verified_by_range and not (PY_TITLE.search(title_l) and FRESHER_TITLE.search(title_l)):
             return False, "JD missing/too short to verify experience"
         job.short_jd = True
-        job.notes.append("⚠️ Full JD not available — check experience on the job page")
+        if verified_by_range:
+            job.notes.append(f"📋 Experience listed: {job.experience_range} (full JD on the job page)")
+        else:
+            job.notes.append("⚠️ Full JD not available — check experience on the job page")
 
     # --- experience -----------------------------------------------------------------
     sources = [desc, job.title]
@@ -535,7 +578,8 @@ def evaluate_job(job: Job):
         return False, "JD says no freshers"
 
     # --- must be a Python role ----------------------------------------------------
-    if not job.short_jd and "python" not in desc_l and "fastapi" not in desc_l and not PY_TITLE.search(title_l):
+    if (not job.short_jd and "python" not in desc_l and "fastapi" not in desc_l and "python" not in skills_l
+            and not PY_TITLE.search(title_l)):
         return False, "Python not mentioned"
 
     # --- graduation batch ---------------------------------------------------------
@@ -555,7 +599,7 @@ def evaluate_job(job: Job):
     job.role_type = "Internship" if is_intern else "Fresher Full-Time"
 
     # --- score ------------------------------------------------------------------------
-    hits = skill_hits(desc_l + " " + title_l)
+    hits = skill_hits(desc_l + " " + title_l + " " + skills_l)
     job.matched_skills = sorted(hits, key=lambda k: -SKILL_WEIGHTS[k])
     skill_pts = min(45.0, sum(SKILL_WEIGHTS[k] for k in hits))
     sim_pts = min(20.0, tfidf_similarity(desc_l) * 70)
@@ -598,12 +642,19 @@ def evaluate_job(job: Job):
 # 5. SCRAPING
 # --------------------------------------------------------------------------------------
 
+BLOCK_SIGNS = re.compile(r"429|403|too many requests|rate.?limit|blocked|captcha|forbidden|denied", re.I)
+
+
 def _scrape_site(site: str, hours_old: int) -> list:
-    """All search terms for one site, sequentially with polite delays (sites run in parallel)."""
+    """All search terms for one site, sequentially with polite delays (sites run in parallel).
+    If the site starts refusing (429/403), we stop asking it for the rest of this run instead of
+    hammering it - that is what gets IPs banned for days."""
     from jobspy import scrape_jobs
 
-    frames = []
-    for term in SEARCH_TERMS:
+    frames, errors, found = [], 0, 0
+    terms = SEARCH_TERMS[:LINKEDIN_MAX_TERMS] if site == "linkedin" else SEARCH_TERMS
+    delay = LINKEDIN_DELAY if site == "linkedin" else SCRAPE_DELAY
+    for i, term in enumerate(terms):
         kwargs = dict(
             site_name=[site], search_term=term, location=SEARCH_LOCATION,
             results_wanted=RESULTS_PER_QUERY, hours_old=hours_old, country_indeed="India",
@@ -620,13 +671,122 @@ def _scrape_site(site: str, hours_old: int) -> list:
             log(f"{site:8s} | {term:36s} | {n} results")
             if n:
                 frames.append(df)
+                found += n
+            errors = 0
         except TypeError as e:  # older/newer JobSpy signature
             log(f"{site:8s} | signature issue: {e}")
-            break
+            SITE_HEALTH[site] = "error"
+            return frames
         except Exception as e:
-            log(f"{site:8s} | {term} failed: {str(e)[:140]}")
-        time.sleep(random.uniform(*SCRAPE_DELAY))
+            msg = str(e)[:140]
+            log(f"{site:8s} | {term} failed: {msg}")
+            errors += 1
+            if BLOCK_SIGNS.search(msg) or errors >= MAX_SITE_ERRORS:
+                SITE_HEALTH[site] = f"paused after {i + 1}/{len(terms)} searches ({'rate-limited' if BLOCK_SIGNS.search(msg) else 'errors'})"
+                return frames
+            time.sleep(10)   # back off before the next try
+        time.sleep(random.uniform(*delay))
+    SITE_HEALTH[site] = f"ok {found}"
     return frames
+
+
+# --------------------------------------------------------------------------------------
+# 5b. OFFICIAL COMPANY JOB FEEDS (Greenhouse / Lever / Ashby public APIs: full JDs, no blocking)
+# --------------------------------------------------------------------------------------
+
+def strip_html(text: str) -> str:
+    t = html.unescape(s(text))
+    t = re.sub(r"<(br|/p|/li|/h\d|/div)\s*/?>", "\n", t, flags=re.I)
+    t = re.sub(r"<li[^>]*>", "- ", t, flags=re.I)
+    t = re.sub(r"<[^>]+>", " ", t)
+    t = html.unescape(t)
+    return re.sub(r"[ \t]+", " ", re.sub(r"\n\s*\n+", "\n\n", t)).strip()
+
+
+def load_company_boards() -> list[tuple[str, str]]:
+    if not COMPANIES_PATH.exists():
+        return []
+    boards = []
+    for ln in COMPANIES_PATH.read_text(encoding="utf-8-sig").splitlines():
+        ln = ln.split("#", 1)[0].strip()
+        parts = ln.split()
+        if len(parts) == 2 and parts[0].lower() in ("greenhouse", "lever", "ashby"):
+            boards.append((parts[0].lower(), parts[1]))
+    return boards
+
+
+def _get_json(url: str):
+    req = urllib.request.Request(url, headers={"User-Agent": BOT_USER_AGENT, "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def _iso_to_date(value) -> str:
+    if isinstance(value, (int, float)) and value > 0:          # Lever: epoch milliseconds
+        return datetime.fromtimestamp(value / 1000, tz=IST).strftime("%Y-%m-%d")
+    m = re.match(r"(\d{4}-\d{2}-\d{2})", s(value))
+    return m.group(1) if m else ""
+
+
+def fetch_board(platform: str, slug: str) -> list[dict]:
+    """Return raw job dicts: title, company, location, url, description, posted_on, is_remote."""
+    out = []
+    if platform == "greenhouse":
+        data = _get_json(f"https://boards-api.greenhouse.io/v1/boards/{urllib.parse.quote(slug)}/jobs?content=true")
+        for j in data.get("jobs", []):
+            out.append(dict(title=j.get("title"), company=j.get("company_name") or slug.replace("-", " ").title(),
+                            location=(j.get("location") or {}).get("name", ""), url=j.get("absolute_url"),
+                            description=strip_html(j.get("content")),
+                            posted_on=_iso_to_date(j.get("first_published") or j.get("updated_at"))))
+    elif platform == "lever":
+        data = _get_json(f"https://api.lever.co/v0/postings/{urllib.parse.quote(slug)}?mode=json")
+        for j in data if isinstance(data, list) else []:
+            cats = j.get("categories") or {}
+            locs = [cats.get("location", "")] + list(cats.get("allLocations") or [])
+            parts = [s(j.get("descriptionPlain"))]
+            for lst in j.get("lists") or []:
+                parts.append(f"{s(lst.get('text'))}:\n{strip_html(lst.get('content'))}")
+            parts.append(s(j.get("additionalPlain")))
+            out.append(dict(title=j.get("text"), company=slug.replace("-", " ").title(), location=" / ".join(filter(None, locs)),
+                            url=j.get("hostedUrl"), description="\n\n".join(p for p in parts if p),
+                            posted_on=_iso_to_date(j.get("createdAt")),
+                            is_remote=s(j.get("workplaceType")).lower() == "remote"))
+    elif platform == "ashby":
+        data = _get_json(f"https://api.ashbyhq.com/posting-api/job-board/{urllib.parse.quote(slug)}")
+        for j in data.get("jobs", []):
+            locs = [s(j.get("location"))] + [s((x or {}).get("location")) for x in j.get("secondaryLocations") or []]
+            out.append(dict(title=j.get("title"), company=slug.replace("-", " ").title(), location=" / ".join(filter(None, locs)),
+                            url=j.get("jobUrl"), description=s(j.get("descriptionPlain")) or strip_html(j.get("descriptionHtml")),
+                            posted_on=_iso_to_date(j.get("publishedAt")), is_remote=bool(j.get("isRemote"))))
+    return out
+
+
+def scrape_company_boards() -> list[Job]:
+    boards = load_company_boards()
+    jobs, ok, total = [], 0, 0
+    for platform, slug in boards:
+        try:
+            raw = fetch_board(platform, slug)
+            ok += 1
+        except Exception as e:
+            log(f"careers  | {platform} {slug} failed: {str(e)[:100]}")
+            continue
+        for r in raw:
+            if not is_hyderabad_location(s(r.get("location"))):
+                continue          # these boards list every office worldwide; keep Hyderabad only
+            url = s(r.get("url"))
+            if not url:
+                continue
+            total += 1
+            jobs.append(Job(id=job_key(url), fp=fingerprint(s(r.get("title")), s(r.get("company"))),
+                            title=s(r.get("title")), company=s(r.get("company")), location=s(r.get("location")),
+                            url=url, site=f"{slug} careers", description=s(r.get("description")),
+                            is_remote=bool(r.get("is_remote")), posted_on=s(r.get("posted_on"))))
+        time.sleep(0.5)
+    if boards:
+        SITE_HEALTH["careers"] = f"{ok}/{len(boards)} company feeds, {total} Hyderabad jobs"
+        log(f"careers  | {SITE_HEALTH['careers']}")
+    return jobs
 
 
 def scrape_all(hours_old: int) -> list[Job]:
@@ -635,12 +795,15 @@ def scrape_all(hours_old: int) -> list[Job]:
     started = time.time()
     log(f"Scraping {len(SITES)} sites x {len(SEARCH_TERMS)} terms, jobs posted in the last {hours_old}h")
     frames = []
-    with ThreadPoolExecutor(max_workers=max(1, len(SITES))) as pool:
+    SITE_HEALTH.clear()
+    with ThreadPoolExecutor(max_workers=max(1, len(SITES)) + 1) as pool:
+        boards_future = pool.submit(scrape_company_boards)
         for site_frames in pool.map(lambda site: _scrape_site(site, hours_old), SITES):
             frames.extend(site_frames)
+        board_jobs = boards_future.result()
     log(f"Scraping took {time.time() - started:.0f}s")
     if not frames:
-        return []
+        return board_jobs
 
     df = pd.concat(frames, ignore_index=True)
     jobs, seen = [], set()
@@ -663,8 +826,13 @@ def scrape_all(hours_old: int) -> list[Job]:
             description=s(row.get("description")),
             is_remote=bool(row.get("is_remote")) if s(row.get("is_remote")) else False,
             job_level=s(row.get("job_level")), experience_range=s(row.get("experience_range")),
+            skills=s(row.get("skills")),
             salary=salary, posted_on=to_date_str(row.get("date_posted")),
         ))
+    for bj in board_jobs:
+        if bj.id not in seen and bj.fp not in seen:
+            seen.update({bj.id, bj.fp})
+            jobs.append(bj)
     log(f"Scraped {len(jobs)} unique listings")
     return jobs
 
@@ -751,6 +919,7 @@ def ai_screen(jobs: list[Job]) -> None:
         chunk = jobs[i:i + AI_SCREEN_BATCH]
         payload = [{"id": j.id, "title": j.title, "company": j.company, "location": j.location,
                     "listed_experience": j.experience_range or None, "level": j.job_level or None,
+                    "key_skills": j.skills or None,
                     "description": j.description[:5000]} for j in chunk]
         try:
             out = run_claude(SCREEN_PROMPT.format(grad=GRAD_YEAR, jobs=json.dumps(payload, ensure_ascii=False)))
@@ -1458,6 +1627,8 @@ async def scrape_and_alert(bot, conn):
                f"{stats['filtered'] + stats['ai_rejected']} filtered · <b>{stats['sent']} sent</b>")
         if top:
             msg += f"\n<i>Filtered: {esc(top)}</i>"
+        if SITE_HEALTH:
+            msg += "\n<i>Sources: " + esc(" · ".join(f"{k} {v}" for k, v in SITE_HEALTH.items())) + "</i>"
         if no_jd:
             msg += "\n<i>No full JD from: " + esc(", ".join(f"{k} {v}" for k, v in sorted(no_jd.items(), key=lambda kv: -kv[1]))) + "</i>"
         if not stats["sent"]:
@@ -1578,6 +1749,9 @@ def selftest():
         ("Python Developer", "Hyderabad", "Short JD", False),
         ("Sales Executive", "Hyderabad", filler, False),
         ("Python Developer", "Hyderabad", "1 year of experience preferred." + filler, True),
+        ("Backend Developer", "Hyderabad", "Experience: 0-2 years of experience in Python." + filler, True),
+        ("Python Developer", "Hyderabad", "0 to 2 yrs exp. Freshers can apply." + filler, True),
+        ("Python Developer", "Hyderabad", "Fresher or 2-4 years experience" + filler, False),
         ("Java Developer", "Hyderabad", "Java Spring Boot microservices. 0-1 years experience. " * 8, False),
         ("Python Developer", "Hyderabad", "Company in business for 10+ years. Freshers apply." + filler, True),
         ("Python Developer (stale)", "Hyderabad", "Freshers welcome." + filler, False),
@@ -1586,6 +1760,9 @@ def selftest():
         ("Python Specialist", "Hyderabad", "Freshers. Develop python apps. Python, python." + filler, True),
         ("Associate - Python", "Hyderabad", "0-1 years." + filler, True),
         ("Data Entry Operator", "Hyderabad", "", False),
+        ("Software Developer (naukri 0-2)", "Hyderabad", "Short snippet.", True),
+        ("Software Developer (naukri 3-6)", "Hyderabad", "Short snippet.", False),
+        ("Software Developer (no range)", "Hyderabad", "Short snippet.", False),
         ("Office Assistant", "Hyderabad", "Freshers welcome. MS Office. " * 20, False),
         ("Python Developer", "Hyderabad", "3+ years experience managing Python language projects." + filler, False),
         ("Python Developer", "Madhapur, Hyderabad", "Qualifications: 2–3 yrs exp in Django/FastAPI." + filler, False),
@@ -1594,6 +1771,10 @@ def selftest():
     fails = 0
     for title, loc, desc, expect in cases:
         j = mk(title, loc, desc)
+        if "(naukri 0-2)" in title:
+            j.experience_range, j.skills = "0-2 Yrs", "Python, FastAPI, SQL, REST API"
+        if "(naukri 3-6)" in title:
+            j.experience_range, j.skills = "3-6 Yrs", "Python, Django"
         if "(stale)" in title:
             j.posted_on = (now_ist().date() - timedelta(days=9)).isoformat()
         ok, reason = evaluate_job(j)

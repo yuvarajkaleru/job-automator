@@ -1,0 +1,10 @@
+# Official company job feeds: full job descriptions, never blocked, one request per company per scan.
+# Format:  <platform> <slug>        platforms: greenhouse, lever, ashby
+# Find the slug in a company's careers link:
+#   job-boards.greenhouse.io/zenoti   or boards.greenhouse.io/zenoti  ->  greenhouse zenoti
+#   jobs.lever.co/acme                                                  ->  lever acme
+#   jobs.ashbyhq.com/acme                                               ->  ashby acme
+# Only Hyderabad openings are kept; all your normal fresher / experience filters still apply.
+
+greenhouse zenoti        # Hyderabad HQ (salon & spa SaaS)
+greenhouse highradius    # Hyderabad HQ (fintech SaaS)
