@@ -107,7 +107,8 @@ BACKUP_SKIP_MINUTES = env("BACKUP_SKIP_MINUTES", 120)  # GitHub backup cron skip
 
 ALLOW_REMOTE = env("ALLOW_REMOTE", False)          # you asked for Hyderabad only
 REQUIRE_FULL_JD = env("REQUIRE_FULL_JD", True)    # skip jobs whose JD is too short to verify
-MIN_JD_CHARS = env("MIN_JD_CHARS", 300)
+MIN_JD_CHARS = env("MIN_JD_CHARS", 250)
+FILTER_VERSION = 2   # bump when filters change: jobs filtered by older rules get re-checked
 REJECT_MIN_YEARS = env("REJECT_MIN_YEARS", 2.0)   # JD asks >= this many years -> rejected
 WARN_MIN_YEARS = env("WARN_MIN_YEARS", 1.0)       # JD asks >= this -> shown with a warning
 MIN_SCORE = env("MIN_SCORE", 40.0)
@@ -275,7 +276,7 @@ JOB_COLUMNS = {
     "id": "TEXT PRIMARY KEY", "fingerprint": "TEXT", "title": "TEXT", "company": "TEXT",
     "location": "TEXT", "url": "TEXT", "site": "TEXT", "description": "TEXT",
     "score": "REAL", "role_type": "TEXT", "matched_skills": "TEXT", "notes": "TEXT",
-    "ai_json": "TEXT", "status": "TEXT", "reason": "TEXT", "posted_on": "TEXT", "created_at": "TEXT",
+    "ai_json": "TEXT", "status": "TEXT", "reason": "TEXT", "posted_on": "TEXT", "filter_version": "INTEGER", "created_at": "TEXT",
     "updated_at": "TEXT",
 }
 
@@ -305,18 +306,21 @@ def meta_set(conn, key, value):
 
 
 def already_seen(conn, jid, fp) -> bool:
-    return conn.execute("SELECT 1 FROM jobs WHERE id=? OR fingerprint=?", (jid, fp)).fetchone() is not None
+    """Seen = sent/applied/skipped, or filtered by the CURRENT rules (older filter results get a re-check)."""
+    return conn.execute(
+        "SELECT 1 FROM jobs WHERE (id=? OR fingerprint=?) AND NOT "
+        "(status='filtered' AND COALESCE(filter_version, 0) < ?)", (jid, fp, FILTER_VERSION)).fetchone() is not None
 
 
 def save_job(conn, job: "Job", status: str, reason: str = ""):
     conn.execute(
         """INSERT OR REPLACE INTO jobs (id, fingerprint, title, company, location, url, site,
            description, score, role_type, matched_skills, notes, ai_json, status, reason,
-           posted_on, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           posted_on, filter_version, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (job.id, job.fp, job.title, job.company, job.location, job.url, job.site,
          job.description, job.score, job.role_type, ", ".join(job.matched_skills),
          json.dumps(job.notes), json.dumps(job.ai) if job.ai else "", status, reason,
-         job.posted_on, now_iso(), now_iso()),
+         job.posted_on, FILTER_VERSION, now_iso(), now_iso()),
     )
     conn.commit()
 
@@ -345,6 +349,7 @@ class Job:
     experience_range: str = ""
     salary: str = ""
     posted_on: str = ""                              # YYYY-MM-DD from the job board
+    short_jd: bool = False                           # board gave no full description
     score: float = 0.0
     role_type: str = ""
     matched_skills: list = field(default_factory=list)
@@ -403,8 +408,11 @@ SENIOR_TITLE = re.compile(
     r"|\b(sde|swe|engineer|developer|analyst|programmer)\s*[-–]?\s*(ii|iii|iv|2|3|4)\b"
     r"|\bl[3-9]\b|\b(mid|mid-level|experienced)\b"
 )
-TECH_TITLE = re.compile(r"python|fastapi|backend|back[- ]end|full[- ]?stack|software|developer|engineer|"
-                        r"\bsde\b|programmer|trainee|intern|api|web")
+TECH_TITLE = re.compile(r"python|fastapi|django|flask|backend|back[- ]end|full[- ]?stack|software|developer|"
+                        r"engineer|\bsde\b|programmer|coder|trainee|intern|apprentice|graduate|associate|"
+                        r"technolog|member of technical staff|\bmts\b|\bget\b|api|web")
+PY_TITLE = re.compile(r"python|fastapi|django|flask|backend|back[- ]end|full[- ]?stack")
+FRESHER_TITLE = re.compile(r"\bintern|trainee|fresher|graduate|junior|\bjr\.?\b|entry|apprentice|associate|\bget\b")
 NON_TECH_TITLE = re.compile(r"sales|marketing|telecaller|bpo|voice process|customer support executive|"
                             r"\bhr\b|recruit|accountant|teacher|tutor|faculty|trainer|content writer|"
                             r"business development|counsel+or|data entry|field executive")
@@ -496,15 +504,21 @@ def evaluate_job(job: Job):
     if NON_TECH_TITLE.search(title_l):
         return False, "Non-tech role"
     if not TECH_TITLE.search(title_l):
-        return False, "Title not a developer role"
+        # odd titles ("Python Specialist", "Member - Tech") still pass if the JD is clearly Python dev work
+        if not (desc_l.count("python") >= 3 and re.search(r"develop|build|api|backend|code", desc_l)):
+            return False, "Title not a developer role"
     if SENIOR_TITLE.search(title_l):
         return False, "Senior / experienced title"
     if job.job_level and SENIOR_LEVELS.search(job.job_level.lower()):
         return False, f"Listed as {job.job_level}"
 
     # --- full JD must exist ---------------------------------------------------------
-    if REQUIRE_FULL_JD and len(desc.strip()) < MIN_JD_CHARS:
-        return False, "JD missing/too short to verify experience"
+    if len(desc.strip()) < MIN_JD_CHARS:
+        # No full JD from the board. Keep only clear fresher/intern Python-ish titles, flagged.
+        if REQUIRE_FULL_JD and not (PY_TITLE.search(title_l) and FRESHER_TITLE.search(title_l)):
+            return False, "JD missing/too short to verify experience"
+        job.short_jd = True
+        job.notes.append("⚠️ Full JD not available — check experience on the job page")
 
     # --- experience -----------------------------------------------------------------
     sources = [desc, job.title]
@@ -521,7 +535,7 @@ def evaluate_job(job: Job):
         return False, "JD says no freshers"
 
     # --- must be a Python role ----------------------------------------------------
-    if "python" not in desc_l and "fastapi" not in desc_l and "python" not in title_l:
+    if not job.short_jd and "python" not in desc_l and "fastapi" not in desc_l and not PY_TITLE.search(title_l):
         return False, "Python not mentioned"
 
     # --- graduation batch ---------------------------------------------------------
@@ -572,6 +586,8 @@ def evaluate_job(job: Job):
         pts -= 4 * len(required_gaps)
         job.notes.append("🧩 Also wants: " + ", ".join(required_gaps))
 
+    if job.short_jd:
+        pts = max(pts, MIN_SCORE + 5)   # can't score skills without a JD; title already qualifies
     job.score = round(max(0.0, min(100.0, pts)), 1)
     if job.score < MIN_SCORE:
         return False, f"Low match score {job.score}"
@@ -715,6 +731,8 @@ Reject a job if ANY of these is true:
 - it asks the candidate to pay money (fees, deposits);
 - it is not really a software development role using Python.
 A job that asks for 0-1 years, "freshers", interns, trainees or "entry level" is fine.
+If a description is short or missing, judge from the title and what is there; do NOT reject only
+because information is missing (say so in "reason").
 
 Return ONLY a JSON array, one object per job, in the same order:
 [{{"id": "...", "verdict": "accept" or "reject", "reason": "<= 15 words",
@@ -1245,6 +1263,19 @@ async def send_stats(bot, conn):
     await bot.send_message(CHAT_ID, text, parse_mode="HTML")
 
 
+async def send_why(bot, conn):
+    rows = conn.execute("SELECT title, company, site, reason, url FROM jobs WHERE status='filtered' "
+                        "ORDER BY updated_at DESC LIMIT 20").fetchall()
+    if not rows:
+        await bot.send_message(CHAT_ID, "No filtered jobs yet.")
+        return
+    lines = ["🔍 <b>Last filtered jobs</b>"]
+    for r in rows:
+        lines.append(f"• <a href=\"{html.escape(s(r['url']))}\">{esc(r['title'])[:50]}</a> — {esc(r['company'])[:25]} "
+                     f"({esc(r['site'])})\n   ↳ <i>{esc(s(r['reason'])[:90])}</i>")
+    await bot.send_message(CHAT_ID, "\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
+
+
 async def send_export(bot, conn):
     rows = conn.execute("SELECT title, company, location, url, score, role_type, status, updated_at FROM jobs "
                         "WHERE status IN ('sent','tailored','applied','skipped') ORDER BY updated_at DESC").fetchall()
@@ -1258,7 +1289,8 @@ async def send_export(bot, conn):
                             caption=f"{len(rows)} jobs (open in Excel / Google Sheets)")
 
 
-HELP = ("🤖 <b>Commands</b>\n/stats — counts and why jobs were filtered\n/export — CSV tracker of your jobs\n"
+HELP = ("🤖 <b>Commands</b>\n/stats — counts and why jobs were filtered\n/why — last 20 filtered jobs and the reason\n"
+        "/export — CSV tracker of your jobs\n"
         "/help — this message\n\nOn each job: <b>Apply</b> makes a tailored resume (PDF + DOCX) and cover letter, "
         "<b>JD check</b> shows the experience/batch evidence, <b>Skip</b> hides it.")
 
@@ -1296,6 +1328,8 @@ async def handle_update(bot, conn, update):
         cmd = update.message.text.strip().split()[0].lower().split("@")[0]
         if cmd == "/stats":
             await send_stats(bot, conn)
+        elif cmd == "/why":
+            await send_why(bot, conn)
         elif cmd == "/export":
             await send_export(bot, conn)
         elif cmd in ("/help", "/start"):
@@ -1355,11 +1389,14 @@ async def scrape_and_alert(bot, conn):
     scraped = await asyncio.to_thread(scrape_all, hours)
     stats = {"scraped": len(scraped), "seen": 0, "filtered": 0, "ai_rejected": 0, "sent": 0}
     reasons = {}
+    no_jd = {}
     candidates = []
     for job in scraped:
         if already_seen(conn, job.id, job.fp):
             stats["seen"] += 1
             continue
+        if len(job.description.strip()) < MIN_JD_CHARS:
+            no_jd[job.site] = no_jd.get(job.site, 0) + 1
         ok, reason = evaluate_job(job)
         if not ok:
             stats["filtered"] += 1
@@ -1421,6 +1458,10 @@ async def scrape_and_alert(bot, conn):
                f"{stats['filtered'] + stats['ai_rejected']} filtered · <b>{stats['sent']} sent</b>")
         if top:
             msg += f"\n<i>Filtered: {esc(top)}</i>"
+        if no_jd:
+            msg += "\n<i>No full JD from: " + esc(", ".join(f"{k} {v}" for k, v in sorted(no_jd.items(), key=lambda kv: -kv[1]))) + "</i>"
+        if not stats["sent"]:
+            msg += "\nSend /why to see the filtered jobs."
         await bot.send_message(CHAT_ID, msg, parse_mode="HTML")
 
 
@@ -1540,6 +1581,12 @@ def selftest():
         ("Java Developer", "Hyderabad", "Java Spring Boot microservices. 0-1 years experience. " * 8, False),
         ("Python Developer", "Hyderabad", "Company in business for 10+ years. Freshers apply." + filler, True),
         ("Python Developer (stale)", "Hyderabad", "Freshers welcome." + filler, False),
+        ("Python Developer Intern", "Hyderabad", "Apply now", True),          # no JD but clear intern title
+        ("Junior Python Developer", "Hyderabad", "", True),
+        ("Python Specialist", "Hyderabad", "Freshers. Develop python apps. Python, python." + filler, True),
+        ("Associate - Python", "Hyderabad", "0-1 years." + filler, True),
+        ("Data Entry Operator", "Hyderabad", "", False),
+        ("Office Assistant", "Hyderabad", "Freshers welcome. MS Office. " * 20, False),
         ("Python Developer", "Hyderabad", "3+ years experience managing Python language projects." + filler, False),
         ("Python Developer", "Madhapur, Hyderabad", "Qualifications: 2–3 yrs exp in Django/FastAPI." + filler, False),
         ("Associate Software Engineer", "Hyderabad, TG, IN", "Graduates of 2025-2027 batch eligible. Python." + filler, True),
@@ -1586,6 +1633,11 @@ def selftest():
     h, gap = compute_window(tmp)
     check(f"daytime window 3h gap -> {h}h, not overnight", h == 4 and gap < OVERNIGHT_MIN_GAP_HOURS)
     check("manual scrape always scans", plan("scrape", "workflow_dispatch") == "scrape")
+    tmp.execute("CREATE TABLE jobs (id TEXT, fingerprint TEXT, status TEXT, filter_version INTEGER)")
+    tmp.execute("INSERT INTO jobs VALUES ('old','f1','filtered',NULL), ('new','f2','filtered',?), ('s','f3','sent',NULL)", (FILTER_VERSION,))
+    check("old-rules filtered job gets re-checked", not already_seen(tmp, "old", "x"))
+    check("current-rules filtered job stays seen", already_seen(tmp, "new", "x"))
+    check("sent job stays seen", already_seen(tmp, "s", "x"))
 
     master = load_master()
     sample = {
