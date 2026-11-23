@@ -83,9 +83,12 @@ jobs:
           RESUME_PHONE: ${{ secrets.RESUME_PHONE }}
           # Tuning (see CONFIG at the top of run_jobs.py):
           LISTEN_SECONDS: '120'        # stay online 2 min after alerts for instant Apply
-          MAX_JOBS_PER_RUN: '12'
-          MAX_JOBS_OVERNIGHT: '20'     # the 8 AM digest can send more
-          MAX_AGE_DAYS: '3'            # drop postings older than this
+          HOURS_OLD: '48'              # every scan searches jobs posted in the last 48 hours
+          MAX_AGE_DAYS: '2'            # drop anything older (boards give dates, so 2 days ~ 48h)
+          MAX_RECENT: '10'             # list 1: 🔥 very recent (posted today)
+          MAX_EARLIER: '8'             # list 2: 📅 last 48 hours (yesterday / day before)
+          MAX_RECENT_OVERNIGHT: '15'   # the 8 AM digest can send more
+          MAX_EARLIER_OVERNIGHT: '12'
         run: python run_jobs.py ${{ steps.plan.outputs.action }}
 
       - name: Save job database

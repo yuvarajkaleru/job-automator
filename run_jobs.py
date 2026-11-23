@@ -39,6 +39,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 import math
+import unicodedata
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -94,12 +95,9 @@ SEARCH_LOCATION = "Hyderabad, Telangana, India"
 RESULTS_PER_QUERY = env("RESULTS_PER_QUERY", 15)
 
 # --- time window & freshness -------------------------------------------------------------
-HOURS_OLD = env("HOURS_OLD", 0)                    # 0 = automatic: hours since the last scan
-WINDOW_BUFFER_HOURS = env("WINDOW_BUFFER_HOURS", 1)  # overlap so nothing slips between scans
-MIN_WINDOW_HOURS = env("MIN_WINDOW_HOURS", 4)
-FIRST_RUN_HOURS = env("FIRST_RUN_HOURS", 24)
-MAX_WINDOW_HOURS = env("MAX_WINDOW_HOURS", 48)
-MAX_AGE_DAYS = env("MAX_AGE_DAYS", 3)              # older postings are dropped as stale
+HOURS_OLD = env("HOURS_OLD", 48)                   # every scan asks the sites for jobs from the last 48h
+MAX_AGE_DAYS = env("MAX_AGE_DAYS", 2)              # 48h rule: today, yesterday, day before (boards give dates only)
+CAREERS_MAX_AGE_DAYS = env("CAREERS_MAX_AGE_DAYS", 2)  # same 48h rule for company feeds
 OVERNIGHT_MIN_GAP_HOURS = env("OVERNIGHT_MIN_GAP_HOURS", 6)
 QUIET_START = env("QUIET_START", "23:30")          # IST: backup runs never send alerts at night
 QUIET_END = env("QUIET_END", "07:30")
@@ -108,12 +106,16 @@ BACKUP_SKIP_MINUTES = env("BACKUP_SKIP_MINUTES", 120)  # GitHub backup cron skip
 ALLOW_REMOTE = env("ALLOW_REMOTE", False)          # you asked for Hyderabad only
 REQUIRE_FULL_JD = env("REQUIRE_FULL_JD", True)    # skip jobs whose JD is too short to verify
 MIN_JD_CHARS = env("MIN_JD_CHARS", 250)
-FILTER_VERSION = 3   # bump when filters change: jobs filtered by older rules get re-checked
+FILTER_VERSION = 4   # bump when filters change: jobs filtered by older rules get re-checked
 REJECT_MIN_YEARS = env("REJECT_MIN_YEARS", 2.0)   # JD asks >= this many years -> rejected
 WARN_MIN_YEARS = env("WARN_MIN_YEARS", 1.0)       # JD asks >= this -> shown with a warning
 MIN_SCORE = env("MIN_SCORE", 40.0)
-MAX_JOBS_PER_RUN = env("MAX_JOBS_PER_RUN", 12)
-MAX_JOBS_OVERNIGHT = env("MAX_JOBS_OVERNIGHT", 20)  # the 8 AM digest can send more
+# Two lists per scan: 🔥 very recent (posted today) and 📅 last 48 hours. Jobs over the cap are
+# NOT marked seen - they wait for the next scan (if still inside 48h), so nothing good is lost.
+MAX_RECENT = env("MAX_RECENT", 10)
+MAX_EARLIER = env("MAX_EARLIER", 8)
+MAX_RECENT_OVERNIGHT = env("MAX_RECENT_OVERNIGHT", 15)   # the 8 AM digest can send more
+MAX_EARLIER_OVERNIGHT = env("MAX_EARLIER_OVERNIGHT", 12)
 
 USE_AI_SCREEN = env("USE_AI_SCREEN", True)
 AI_SCREEN_BATCH = env("AI_SCREEN_BATCH", 6)
@@ -137,7 +139,10 @@ HYD_KEYWORDS = [
     "hyderabad", "secunderabad", "hitec city", "hi-tech city", "hitech city", "gachibowli",
     "madhapur", "kondapur", "kukatpally", "financial district", "nanakramguda", "manikonda",
     "kokapet", "raidurg", "begumpet", "ameerpet", "banjara hills", "jubilee hills", "uppal",
-    "shamshabad", "miyapur", "serilingampally", "narsingi", "pocharam", "cyberabad",
+    "shamshabad", "miyapur", "serilingampally", "serilingampalli", "seri lingampally", "lingampally",
+    "lingampalli", "narsingi", "pocharam", "cyberabad", "rangareddy", "ranga reddy", "medchal", "hafeezpet",
+    "chandanagar", "bachupally", "kompally", "nizampet", "shamirpet", "mindspace", "puppalaguda",
+    "khajaguda", "tellapur", "gopanpally", "hitec", "hitech", "kondapur", "manikonda", "attapur",
 ]
 OTHER_CITIES = [
     "bangalore", "bengaluru", "chennai", "pune", "mumbai", "navi mumbai", "delhi", "new delhi",
@@ -202,8 +207,22 @@ def job_key(url: str) -> str:
     return hashlib.sha1(clean.encode("utf-8")).hexdigest()[:16]
 
 
+TITLE_NOISE = re.compile(
+    r"\(.*?\)|\[.*?\]|\b(urgent(ly)?|hiring|we are hiring|immediate(ly)?|joiners?|freshers?|wfo|work from office|"
+    r"hyderabad|hyd|telangana|india|on-?site|hybrid|remote|openings?|opportunity|required|requirement|vacancy|"
+    r"job|role|position|for|with|and|in|at|the|\d+\s*-\s*\d+\s*(yrs?|years?)|\d+\+?\s*(yrs?|years?)|"
+    r"full[- ]?time|permanent|contract|\d{4,})\b")
+COMPANY_NOISE = re.compile(r"\b(private|pvt|ltd|limited|llp|inc|corp(oration)?|technologies|technology|tech|"
+                           r"solutions|services|software|systems|india|global|consulting|labs?|co|group|the)\b")
+
+
 def fingerprint(title: str, company: str) -> str:
-    return hashlib.sha1(f"{norm(title)}|{norm(company)}".encode()).hexdigest()[:16]
+    """Same job across sites -> same fingerprint ('Python Developer - Fresher (Hyderabad)' at
+    'Acme Technologies Pvt Ltd' == 'Python Developer' at 'Acme'). Word order does not matter."""
+    t = norm(TITLE_NOISE.sub(" ", fold(title)))
+    t = " ".join(sorted(set(t.split()))) or norm(title)
+    c = norm(COMPANY_NOISE.sub(" ", fold(company))) or norm(company)
+    return hashlib.sha1(f"{t}|{c}".encode()).hexdigest()[:16]
 
 
 def now_iso() -> str:
@@ -256,7 +275,7 @@ def age_label(posted_on: str) -> str:
     a = age_days(posted_on)
     if a is None:
         return ""
-    return {0: "🔥 Posted today", 1: "🕒 Posted yesterday"}.get(a, f"🕒 Posted {a} days ago")
+    return {0: "🔥 Posted today", 1: "🕒 Posted yesterday"}.get(a, f"🕒 Posted {a} days ago")  # within 48h rule
 
 
 def recency_key(job) -> tuple:
@@ -298,6 +317,11 @@ def db_connect() -> sqlite3.Connection:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_fp ON jobs(fingerprint)")
     conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
     conn.commit()
+    if meta_get(conn, "fp_version", "1") != "2":       # recompute with the smarter duplicate matcher
+        rows = conn.execute("SELECT id, title, company FROM jobs").fetchall()
+        conn.executemany("UPDATE jobs SET fingerprint=? WHERE id=?",
+                         [(fingerprint(s(r["title"]), s(r["company"])), r["id"]) for r in rows])
+        meta_set(conn, "fp_version", "2")
     return conn
 
 
@@ -386,9 +410,12 @@ EXP_PATTERNS = [
 EXP_CONTEXT = re.compile(r"experien|\bexp\b|work(?:ing)?\b|industry|professional|hands[- ]on|relevant|proven|track record")
 EXP_IGNORE_CONTEXT = re.compile(r"\bbond\b|service agreement|commitment|founded|since \d{4}|in business|company has|we have been|warranty|\bage\b")
 
+DASHES = {ord(c): "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe58\ufe63\uff0d"}
+
 
 def normalize_text(text: str) -> str:
-    t = s(text).lower().replace("–", "-").replace("—", "-").replace(" ", " ")
+    t = s(text).lower().translate(DASHES).replace("\u00a0", " ")
+    t = re.sub(r"\\([-+*_.#()\[\]])", r"\1", t)   # markdown escapes: 2\-4 -> 2-4
     for w, n in WORD_NUMBERS.items():
         t = re.sub(rf"\b{w}\b(?=\s*(\(\d+\)\s*)?\+?\s*(years?|yrs?|-|to|\+))", n, t)
     t = re.sub(r"\b(\d+)\s*\(\s*\d+\s*\)", r"\1", t)  # "two (2) years" -> "2 (2)" -> "2"
@@ -455,8 +482,15 @@ def listed_experience_min(text: str):
     return float(m.group(1)) if m else None
 
 
+def fold(text: str) -> str:
+    """Lower-case and strip accents: 'Hyderābād' -> 'hyderabad'."""
+    return "".join(c for c in unicodedata.normalize("NFKD", s(text)) if not unicodedata.combining(c)).lower()
+
+
 def is_hyderabad_location(location: str) -> bool:
-    loc = s(location).lower()
+    loc = fold(location)
+    if re.search(r"\bhyd\b", loc):
+        return True
     return any(k in loc for k in HYD_KEYWORDS)
 
 
@@ -527,7 +561,7 @@ def evaluate_job(job: Job):
 
     # --- freshness: old postings are usually already flooded with applicants -------
     a = age_days(job.posted_on)
-    if a is not None and a > MAX_AGE_DAYS:
+    if a is not None and a > (CAREERS_MAX_AGE_DAYS if job.site.endswith("careers") else MAX_AGE_DAYS):
         return False, f"Stale: posted {a} days ago"
 
     # --- title ----------------------------------------------------------------------
@@ -539,8 +573,11 @@ def evaluate_job(job: Job):
             return False, "Title not a developer role"
     if SENIOR_TITLE.search(title_l):
         return False, "Senior / experienced title"
-    if job.job_level and SENIOR_LEVELS.search(job.job_level.lower()):
+    level_l = s(job.job_level).lower()
+    if re.search(r"director|executive", level_l):
         return False, f"Listed as {job.job_level}"
+    # LinkedIn's "Mid-Senior level" is often a lazy default, so it is judged together with the JD below.
+    mid_senior = "senior" in level_l
 
     # --- full JD must exist ---------------------------------------------------------
     # --- experience range listed by the board (Naukri: "0-2 Yrs", "Fresher") ---------
@@ -555,13 +592,21 @@ def evaluate_job(job: Job):
         #  (b) the title is clearly a fresher/intern Python role.
         python_work = bool(PY_TITLE.search(title_l)) or bool(re.search(r"python|fastapi|django|flask", skills_l + " " + desc_l))
         verified_by_range = listed_min is not None and python_work
-        if REQUIRE_FULL_JD and not verified_by_range and not (PY_TITLE.search(title_l) and FRESHER_TITLE.search(title_l)):
+        fresher_python_title = bool(PY_TITLE.search(title_l) and FRESHER_TITLE.search(title_l))
+        # (c) interns/trainees are fresher roles by definition, even if Python isn't confirmed yet
+        dev_intern_title = bool(re.search(r"\bintern|trainee|apprentice|graduate engineer", title_l)
+                                and re.search(r"software|developer|engineer|\bsde\b|programmer|backend|full", title_l))
+        if REQUIRE_FULL_JD and not (verified_by_range or fresher_python_title or dev_intern_title):
             return False, "JD missing/too short to verify experience"
+        if mid_senior and not dev_intern_title:
+            return False, f"Listed as {job.job_level} and no JD to check"
         job.short_jd = True
         if verified_by_range:
             job.notes.append(f"📋 Experience listed: {job.experience_range} (full JD on the job page)")
-        else:
+        elif fresher_python_title:
             job.notes.append("⚠️ Full JD not available — check experience on the job page")
+        else:
+            job.notes.append("⚠️ Full JD not available — confirm it uses Python before applying")
 
     # --- experience -----------------------------------------------------------------
     sources = [desc, job.title]
@@ -576,6 +621,12 @@ def evaluate_job(job: Job):
         return False, f"Needs {min_years:g}+ yrs (\"{evidence[:80]}\")"
     if re.search(r"experienced (candidates?|professionals?) only|not for freshers|freshers? (need|should) not apply|no freshers", desc_l):
         return False, "JD says no freshers"
+    if mid_senior and not job.short_jd:
+        fresher_signal = bool(FRESHER_WORDS.search(desc_l)) or (min_years is not None and min_years < REJECT_MIN_YEARS) \
+            or bool(re.search(r"\bintern(ship)?\b|trainee", title_l))
+        if not fresher_signal:
+            return False, f"Listed as {job.job_level}, JD has no fresher signal"
+        job.notes.append(f"ℹ️ LinkedIn says {job.job_level}, but the JD looks fresher-friendly")
 
     # --- must be a Python role ----------------------------------------------------
     if (not job.short_jd and "python" not in desc_l and "fastapi" not in desc_l and "python" not in skills_l
@@ -1432,17 +1483,43 @@ async def send_stats(bot, conn):
     await bot.send_message(CHAT_ID, text, parse_mode="HTML")
 
 
-async def send_why(bot, conn):
-    rows = conn.execute("SELECT title, company, site, reason, url FROM jobs WHERE status='filtered' "
-                        "ORDER BY updated_at DESC LIMIT 20").fetchall()
+async def send_chunks(bot, lines: list[str]):
+    """Telegram messages max out at 4096 chars; send long lists in pieces."""
+    chunk = ""
+    for ln in lines:
+        if len(chunk) + len(ln) + 1 > 3800:
+            await bot.send_message(CHAT_ID, chunk, parse_mode="HTML", disable_web_page_preview=True)
+            chunk = ""
+        chunk += ln + "\n"
+    if chunk.strip():
+        await bot.send_message(CHAT_ID, chunk, parse_mode="HTML", disable_web_page_preview=True)
+
+
+async def send_why(bot, conn, args: list[str] | None = None):
+    """/why            -> last 20 filtered jobs
+       /why 50         -> last 50
+       /why naukri     -> only from a site (or a reason word: /why stale, /why location)"""
+    limit, word = 20, ""
+    for a in args or []:
+        if a.isdigit():
+            limit = max(1, min(60, int(a)))
+        else:
+            word = a.lower()
+    sql = "SELECT title, company, site, reason, url FROM jobs WHERE status='filtered'"
+    params: list = []
+    if word:
+        sql += " AND (lower(site) LIKE ? OR lower(reason) LIKE ?)"
+        params += [f"%{word}%", f"%{word}%"]
+    rows = conn.execute(sql + " ORDER BY updated_at DESC LIMIT ?", params + [limit]).fetchall()
     if not rows:
-        await bot.send_message(CHAT_ID, "No filtered jobs yet.")
+        await bot.send_message(CHAT_ID, "No filtered jobs match that.")
         return
-    lines = ["🔍 <b>Last filtered jobs</b>"]
+    lines = [f"🔍 <b>Last {len(rows)} filtered jobs{' — ' + esc(word) if word else ''}</b>"]
     for r in rows:
         lines.append(f"• <a href=\"{html.escape(s(r['url']))}\">{esc(r['title'])[:50]}</a> — {esc(r['company'])[:25]} "
                      f"({esc(r['site'])})\n   ↳ <i>{esc(s(r['reason'])[:90])}</i>")
-    await bot.send_message(CHAT_ID, "\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
+    lines.append("\n<i>Try /why 50, /why naukri, /why stale, /why location</i>")
+    await send_chunks(bot, lines)
 
 
 async def send_export(bot, conn):
@@ -1458,7 +1535,8 @@ async def send_export(bot, conn):
                             caption=f"{len(rows)} jobs (open in Excel / Google Sheets)")
 
 
-HELP = ("🤖 <b>Commands</b>\n/stats — counts and why jobs were filtered\n/why — last 20 filtered jobs and the reason\n"
+HELP = ("🤖 <b>Commands</b>\n/stats — counts and why jobs were filtered\n/why — last 20 filtered jobs and the reason "
+        "(/why 50, /why naukri, /why stale)\n"
         "/export — CSV tracker of your jobs\n"
         "/help — this message\n\nOn each job: <b>Apply</b> makes a tailored resume (PDF + DOCX) and cover letter, "
         "<b>JD check</b> shows the experience/batch evidence, <b>Skip</b> hides it.")
@@ -1498,7 +1576,7 @@ async def handle_update(bot, conn, update):
         if cmd == "/stats":
             await send_stats(bot, conn)
         elif cmd == "/why":
-            await send_why(bot, conn)
+            await send_why(bot, conn, update.message.text.split()[1:])
         elif cmd == "/export":
             await send_export(bot, conn)
         elif cmd in ("/help", "/start"):
@@ -1537,30 +1615,41 @@ async def process_updates(bot, conn, seconds: int = 0):
 # --------------------------------------------------------------------------------------
 
 def compute_window(conn) -> tuple[int, float | None]:
-    """Hours to look back = time since the last scan + buffer. Returns (hours, gap_hours)."""
-    if HOURS_OLD:
-        return int(HOURS_OLD), None
+    """Every scan looks back HOURS_OLD (48h). Also returns hours since the last scan (overnight check)."""
     last = parse_utc(meta_get(conn, "last_scan_at", ""))
-    if not last:
-        return int(FIRST_RUN_HOURS), None
-    gap = (datetime.now(timezone.utc) - last).total_seconds() / 3600
-    hours = math.ceil(max(0.0, gap - 0.1)) + int(WINDOW_BUFFER_HOURS)   # 3h05m gap -> 3h + 1h buffer
-    return int(min(MAX_WINDOW_HOURS, max(MIN_WINDOW_HOURS, hours))), gap
+    gap = (datetime.now(timezone.utc) - last).total_seconds() / 3600 if last else None
+    return int(HOURS_OLD or 48), gap
+
+
+def split_lists(jobs: list) -> tuple[list, list]:
+    """🔥 very recent = posted today; 📅 earlier = yesterday / day before / date unknown. No job in both."""
+    recent = [j for j in jobs if age_days(j.posted_on) == 0]
+    ids = {j.id for j in recent}
+    earlier = [j for j in jobs if j.id not in ids]
+    recent.sort(key=lambda j: -j.score)
+    earlier.sort(key=lambda j: (99 if age_days(j.posted_on) is None else age_days(j.posted_on), -j.score))
+    return recent, earlier
 
 
 async def scrape_and_alert(bot, conn):
     scan_started = now_iso()
     hours, gap = compute_window(conn)
     overnight = gap is not None and gap >= OVERNIGHT_MIN_GAP_HOURS
-    cap = MAX_JOBS_OVERNIGHT if overnight else MAX_JOBS_PER_RUN
-    last_scan = parse_utc(meta_get(conn, "last_scan_at", ""))
+    cap_recent = MAX_RECENT_OVERNIGHT if overnight else MAX_RECENT
+    cap_earlier = MAX_EARLIER_OVERNIGHT if overnight else MAX_EARLIER
+    cap = cap_recent + cap_earlier
 
     scraped = await asyncio.to_thread(scrape_all, hours)
     stats = {"scraped": len(scraped), "seen": 0, "filtered": 0, "ai_rejected": 0, "sent": 0}
     reasons = {}
     no_jd = {}
     candidates = []
+    batch_fps = set()
     for job in scraped:
+        if job.fp in batch_fps:            # same job twice in this scan (e.g. LinkedIn + Naukri)
+            stats["seen"] += 1
+            continue
+        batch_fps.add(job.fp)
         if already_seen(conn, job.id, job.fp):
             stats["seen"] += 1
             continue
@@ -1580,8 +1669,7 @@ async def scrape_and_alert(bot, conn):
     candidates.sort(key=recency_key)
     screen_max = max(AI_SCREEN_MAX, cap + 8)
     to_screen = candidates[:screen_max]
-    for j in candidates[screen_max:]:
-        save_job(conn, j, "filtered", "Overflow: older/lower match this run")
+    # candidates beyond screen_max are simply left unsaved: they come back next scan if still < 48h
 
     if USE_AI_SCREEN and to_screen:
         await asyncio.to_thread(ai_screen, to_screen)
@@ -1599,32 +1687,35 @@ async def scrape_and_alert(bot, conn):
             stats["ai_rejected"] += 1
             continue
         final.append(j)
-    final.sort(key=recency_key)
+    recent, earlier = split_lists(final)
+    recent, earlier = recent[:cap_recent], earlier[:cap_earlier]   # the rest waits for the next scan
+    stats["recent"], stats["earlier"] = len(recent), len(earlier)
+    prefix = "🌙 Overnight · " if overnight and now_ist().hour < 11 else ""
 
-    if overnight and final:
-        since = last_scan.astimezone(IST).strftime("%I:%M %p").lstrip("0") if last_scan else "last night"
-        title = "🌙 <b>Overnight jobs</b>" if now_ist().hour < 11 else "📦 <b>Catch-up jobs</b>"
-        await bot.send_message(CHAT_ID, f"{title} — posted since {since}, freshest first "
-                                        f"({min(len(final), cap)} job{'s' if min(len(final), cap) != 1 else ''})",
+    async def send_list(header: str, jobs: list):
+        if not jobs:
+            return
+        await bot.send_message(CHAT_ID, f"{prefix}{header} — {len(jobs)} job{'s' if len(jobs) != 1 else ''}",
                                parse_mode="HTML")
+        for j in jobs:
+            try:
+                await send_alert(bot, j)
+                save_job(conn, j, "sent")
+                stats["sent"] += 1
+                await asyncio.sleep(0.6)
+            except Exception as e:
+                log(f"send failed for {j.title}: {e}")
 
-    for j in final[:cap]:
-        try:
-            await send_alert(bot, j)
-            save_job(conn, j, "sent")
-            stats["sent"] += 1
-            await asyncio.sleep(0.6)
-        except Exception as e:
-            log(f"send failed for {j.title}: {e}")
-    for j in final[cap:]:
-        save_job(conn, j, "filtered", "Over per-run limit")
+    await send_list("🔥 <b>VERY RECENT</b> · posted today · apply first", recent)
+    await send_list("📅 <b>LAST 48 HOURS</b> · posted yesterday / day before", earlier)
 
     meta_set(conn, "last_scan_at", scan_started)   # next scan looks back to the start of this one
     log(f"Run stats: {stats} | window {hours}h | reasons: {reasons}")
     if SEND_RUN_SUMMARY and (stats["sent"] or stats["filtered"] or stats["ai_rejected"]):
-        top = ", ".join(f"{k} {v}" for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])[:4])
+        top = ", ".join(f"{k} {v}" for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])[:6])
         msg = (f"🔎 Scan done ({hours}h window): {stats['scraped']} listings · {stats['seen']} already seen · "
-               f"{stats['filtered'] + stats['ai_rejected']} filtered · <b>{stats['sent']} sent</b>")
+               f"{stats['filtered'] + stats['ai_rejected']} filtered · <b>{stats['sent']} sent</b> "
+               f"(🔥 {stats.get('recent', 0)} very recent · 📅 {stats.get('earlier', 0)} last 48h)")
         if top:
             msg += f"\n<i>Filtered: {esc(top)}</i>"
         if SITE_HEALTH:
@@ -1783,6 +1874,33 @@ def selftest():
         print(f"{mark}  expect={'keep' if expect else 'drop':4s} got={'keep' if ok else 'drop':4s}  "
               f"{title[:24]:24s} | {loc[:22]:22s} | {reason} | score={j.score} {j.notes}")
 
+    # --- cases with extra listing fields (LinkedIn level, careers feeds, odd dashes) ---------
+    old_date = lambda d: (now_ist().date() - timedelta(days=d)).isoformat()
+    extra = [
+        ("Software Development Engineer", "Serilingampalli, Telangana, India", "Freshers. 0-1 years." + filler, {}, True),
+        ("Python Developer", "Hyderābād, Telangana", "Freshers welcome." + filler, {}, True),
+        ("Python Developer", "Hyd", "Freshers welcome." + filler, {}, True),
+        ("Python Developer", "Hyderabad", "Experience: 0\u20112 years. Freshers." + filler, {}, True),
+        ("Python Developer", "Hyderabad", "Required: 2\u22124 years of experience" + filler, {}, False),
+        ("Python Developer", "Hyderabad", "Required: 0\\-2 years of experience" + filler, {}, True),
+        ("Full Stack Developer", "Hyderabad", "Freshers welcome, 0-1 years." + filler, {"job_level": "Mid-Senior level"}, True),
+        ("Full Stack Developer", "Hyderabad", "Strong ownership expected." + filler, {"job_level": "Mid-Senior level"}, False),
+        ("Software Engineer", "Hyderabad", filler, {"job_level": "Director"}, False),
+        ("Software Engineer Intern", "Hyderabad", "", {}, True),
+        ("Intern - Process Excellence", "Hyderabad", "", {}, False),
+        ("Associate Software Engineer - Python", "Hyderabad", "Freshers." + filler, {"site": "zenoti careers", "posted_on": old_date(1)}, True),
+        ("Associate Software Engineer - Python", "Hyderabad", "Freshers." + filler, {"site": "zenoti careers", "posted_on": old_date(10)}, False),
+        ("Associate Software Engineer - Python", "Hyderabad", "Freshers." + filler, {"posted_on": old_date(3)}, False),
+    ]
+    for title, loc, desc, kw, expect in extra:
+        site = kw.pop("site", "linkedin")
+        j = mk(title, loc, desc, **kw)
+        j.site = site
+        ok, reason = evaluate_job(j)
+        fails += ok != expect
+        print(f"{'PASS' if ok == expect else 'FAIL'}  expect={'keep' if expect else 'drop':4s} got={'keep' if ok else 'drop':4s}  "
+              f"{title[:24]:24s} | {loc[:22]:22s} | {reason} | {j.notes}")
+
     # --- schedule / freshness logic -------------------------------------------------------
     def check(name, cond):
         nonlocal fails
@@ -1804,15 +1922,33 @@ def selftest():
     tmp = sqlite3.connect(":memory:")
     tmp.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
     tmp.row_factory = sqlite3.Row
-    check(f"first run window = {FIRST_RUN_HOURS}h", compute_window(tmp)[0] == FIRST_RUN_HOURS)
+    check("first run: 48h window, not overnight", compute_window(tmp) == (48, None))
     night = (datetime.now(timezone.utc) - timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
     tmp.execute("INSERT INTO meta VALUES ('last_scan_at', ?)", (night,))
     h, gap = compute_window(tmp)
-    check(f"overnight window 9h gap -> {h}h, overnight={gap >= OVERNIGHT_MIN_GAP_HOURS}", h == 10 and gap >= OVERNIGHT_MIN_GAP_HOURS)
+    check(f"after a 9h night gap: window {h}h, overnight={gap >= OVERNIGHT_MIN_GAP_HOURS}", h == 48 and gap >= OVERNIGHT_MIN_GAP_HOURS)
     tmp.execute("UPDATE meta SET value=? WHERE key='last_scan_at'",
                 ((datetime.now(timezone.utc) - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S"),))
     h, gap = compute_window(tmp)
-    check(f"daytime window 3h gap -> {h}h, not overnight", h == 4 and gap < OVERNIGHT_MIN_GAP_HOURS)
+    check(f"daytime 3h gap: window {h}h, not overnight", h == 48 and gap < OVERNIGHT_MIN_GAP_HOURS)
+
+    # duplicates across sites collapse; different jobs stay different
+    same = [fingerprint("Python Developer - Fresher (Hyderabad)", "Acme Technologies Pvt Ltd"),
+            fingerprint("Python Developer", "ACME"), fingerprint("Developer Python | Urgent Hiring", "Acme Tech")]
+    check("same job on different sites = same fingerprint", len(set(same)) == 1)
+    check("different roles stay different",
+          fingerprint("Python Intern", "Acme") != fingerprint("Python Developer", "Acme") != fingerprint("Python Developer", "Beta"))
+
+    # two lists, no overlap, today first
+    t0, t1, t2 = (now_ist().date() - timedelta(days=d) for d in (0, 1, 2))
+    js = []
+    for i, (d, sc) in enumerate([(t0, 60), (t1, 90), (t0, 85), (t2, 70), (None, 80)]):
+        j = mk(f"J{i}", "Hyderabad", ""); j.id, j.score, j.posted_on = f"j{i}", sc, d.isoformat() if d else ""
+        js.append(j)
+    rec, earl = split_lists(js)
+    check(f"very recent = today only, best first -> {[j.title for j in rec]}", [j.title for j in rec] == ["J2", "J0"])
+    check(f"last 48h = rest, newest first -> {[j.title for j in earl]}", [j.title for j in earl] == ["J1", "J3", "J4"])
+    check("no job in both lists", not ({j.id for j in rec} & {j.id for j in earl}))
     check("manual scrape always scans", plan("scrape", "workflow_dispatch") == "scrape")
     tmp.execute("CREATE TABLE jobs (id TEXT, fingerprint TEXT, status TEXT, filter_version INTEGER)")
     tmp.execute("INSERT INTO jobs VALUES ('old','f1','filtered',NULL), ('new','f2','filtered',?), ('s','f3','sent',NULL)", (FILTER_VERSION,))
@@ -1844,7 +1980,7 @@ def selftest():
     render_resume_docx(sample, OUTPUT_DIR / "selftest_resume.docx")
     print(f"\nGuard removed: {removed} | resume pages: {pages} | missing fields: {missing_fields(master)}")
     print(f"Contact parsed: {sample['_contact']}")
-    print(f"\n{len(cases)} filter cases + schedule checks: {'ALL PASSED' if not fails else str(fails) + ' FAILED'}")
+    print(f"\n{len(cases) + len(extra)} filter cases + schedule checks: {'ALL PASSED' if not fails else str(fails) + ' FAILED'}")
     return fails
 
 
