@@ -6,9 +6,14 @@ fresher roles and internships, screens every full job description twice (strict 
 then an AI re-check), sends the good ones to Telegram, and on one tap generates a
 tailored resume (PDF + DOCX) and cover letter (PDF) from master_resume.md.
 
+Schedule (IST): scans at 8 AM, 11 AM, 2 PM, 5 PM, 8 PM, 11 PM. Each scan only asks the job
+sites for jobs posted since the previous scan, so the 8 AM scan is the overnight digest
+(everything posted 11 PM - 8 AM). Freshest jobs are screened and sent first.
+
 Modes
   python run_jobs.py scrape     -> handle pending taps, find new jobs, listen LISTEN_SECONDS
   python run_jobs.py approvals  -> only handle taps queued in Telegram since the last run
+  python run_jobs.py plan       -> (stdlib only) decide scrape / approvals / skip for GitHub Actions
   python run_jobs.py listen     -> run forever (use this on your own PC or a VPS)
   python run_jobs.py selftest   -> offline check of filters + PDF rendering (no network)
 
@@ -33,8 +38,14 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+import math
+import urllib.parse
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 # --------------------------------------------------------------------------------------
 # 0. CONFIG  (every value can be overridden with an environment variable of the same name)
@@ -81,7 +92,18 @@ SEARCH_TERMS = env("SEARCH_TERMS", [
 ])
 SEARCH_LOCATION = "Hyderabad, Telangana, India"
 RESULTS_PER_QUERY = env("RESULTS_PER_QUERY", 15)
-HOURS_OLD = env("HOURS_OLD", 72)
+
+# --- time window & freshness -------------------------------------------------------------
+HOURS_OLD = env("HOURS_OLD", 0)                    # 0 = automatic: hours since the last scan
+WINDOW_BUFFER_HOURS = env("WINDOW_BUFFER_HOURS", 1)  # overlap so nothing slips between scans
+MIN_WINDOW_HOURS = env("MIN_WINDOW_HOURS", 4)
+FIRST_RUN_HOURS = env("FIRST_RUN_HOURS", 24)
+MAX_WINDOW_HOURS = env("MAX_WINDOW_HOURS", 48)
+MAX_AGE_DAYS = env("MAX_AGE_DAYS", 3)              # older postings are dropped as stale
+OVERNIGHT_MIN_GAP_HOURS = env("OVERNIGHT_MIN_GAP_HOURS", 6)
+QUIET_START = env("QUIET_START", "23:30")          # IST: backup runs never send alerts at night
+QUIET_END = env("QUIET_END", "07:30")
+BACKUP_SKIP_MINUTES = env("BACKUP_SKIP_MINUTES", 120)  # GitHub backup cron skips if a scan ran recently
 
 ALLOW_REMOTE = env("ALLOW_REMOTE", False)          # you asked for Hyderabad only
 REQUIRE_FULL_JD = env("REQUIRE_FULL_JD", True)    # skip jobs whose JD is too short to verify
@@ -90,15 +112,17 @@ REJECT_MIN_YEARS = env("REJECT_MIN_YEARS", 2.0)   # JD asks >= this many years -
 WARN_MIN_YEARS = env("WARN_MIN_YEARS", 1.0)       # JD asks >= this -> shown with a warning
 MIN_SCORE = env("MIN_SCORE", 40.0)
 MAX_JOBS_PER_RUN = env("MAX_JOBS_PER_RUN", 12)
+MAX_JOBS_OVERNIGHT = env("MAX_JOBS_OVERNIGHT", 20)  # the 8 AM digest can send more
 
 USE_AI_SCREEN = env("USE_AI_SCREEN", True)
 AI_SCREEN_BATCH = env("AI_SCREEN_BATCH", 6)
 AI_SCREEN_MAX = env("AI_SCREEN_MAX", 24)
+SCRAPE_DELAY = (env("SCRAPE_DELAY_MIN", 1.5), env("SCRAPE_DELAY_MAX", 3.0))
 CLAUDE_BIN = env("CLAUDE_BIN", "claude")
 CLAUDE_MODEL = env("CLAUDE_MODEL", "")            # blank = your plan's default
 CLAUDE_TIMEOUT = env("CLAUDE_TIMEOUT", 300)
 
-LISTEN_SECONDS = env("LISTEN_SECONDS", 240)       # stay online after sending alerts
+LISTEN_SECONDS = env("LISTEN_SECONDS", 120)       # stay online after sending alerts
 SEND_RUN_SUMMARY = env("SEND_RUN_SUMMARY", True)
 
 # Hyderabad + its tech localities. A job location must contain one of these.
@@ -187,6 +211,62 @@ def safe_filename(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "_", s(text)).strip("_")[:40] or "Company"
 
 
+def now_ist() -> datetime:
+    return datetime.now(IST)
+
+
+def parse_utc(text: str):
+    try:
+        return datetime.strptime(s(text), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def to_date_str(value) -> str:
+    """JobSpy's date_posted may be a date, Timestamp or string -> 'YYYY-MM-DD' or ''."""
+    if not s(value):
+        return ""
+    if hasattr(value, "strftime"):
+        try:
+            return value.strftime("%Y-%m-%d")
+        except Exception:
+            return ""
+    m = re.match(r"(\d{4}-\d{2}-\d{2})", s(value))
+    return m.group(1) if m else ""
+
+
+def age_days(posted_on: str, today: date | None = None):
+    if not posted_on:
+        return None
+    try:
+        d = datetime.strptime(posted_on, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    return max(0, ((today or now_ist().date()) - d).days)
+
+
+def age_label(posted_on: str) -> str:
+    a = age_days(posted_on)
+    if a is None:
+        return ""
+    return {0: "🔥 Posted today", 1: "🕒 Posted yesterday"}.get(a, f"🕒 Posted {a} days ago")
+
+
+def recency_key(job) -> tuple:
+    """Freshest first, then best match. Unknown dates sort just after 'today'."""
+    a = age_days(job.posted_on)
+    return (0.5 if a is None else a, -job.score)
+
+
+def in_quiet_hours(t: datetime | None = None) -> bool:
+    t = t or now_ist()
+    hm = t.hour * 60 + t.minute
+    qs = [int(x) for x in QUIET_START.split(":")]
+    qe = [int(x) for x in QUIET_END.split(":")]
+    start, end = qs[0] * 60 + qs[1], qe[0] * 60 + qe[1]
+    return hm >= start or hm < end if start > end else start <= hm < end
+
+
 # --------------------------------------------------------------------------------------
 # 3. DATABASE
 # --------------------------------------------------------------------------------------
@@ -195,7 +275,7 @@ JOB_COLUMNS = {
     "id": "TEXT PRIMARY KEY", "fingerprint": "TEXT", "title": "TEXT", "company": "TEXT",
     "location": "TEXT", "url": "TEXT", "site": "TEXT", "description": "TEXT",
     "score": "REAL", "role_type": "TEXT", "matched_skills": "TEXT", "notes": "TEXT",
-    "ai_json": "TEXT", "status": "TEXT", "reason": "TEXT", "created_at": "TEXT",
+    "ai_json": "TEXT", "status": "TEXT", "reason": "TEXT", "posted_on": "TEXT", "created_at": "TEXT",
     "updated_at": "TEXT",
 }
 
@@ -232,11 +312,11 @@ def save_job(conn, job: "Job", status: str, reason: str = ""):
     conn.execute(
         """INSERT OR REPLACE INTO jobs (id, fingerprint, title, company, location, url, site,
            description, score, role_type, matched_skills, notes, ai_json, status, reason,
-           created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           posted_on, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (job.id, job.fp, job.title, job.company, job.location, job.url, job.site,
          job.description, job.score, job.role_type, ", ".join(job.matched_skills),
          json.dumps(job.notes), json.dumps(job.ai) if job.ai else "", status, reason,
-         now_iso(), now_iso()),
+         job.posted_on, now_iso(), now_iso()),
     )
     conn.commit()
 
@@ -264,6 +344,7 @@ class Job:
     job_level: str = ""
     experience_range: str = ""
     salary: str = ""
+    posted_on: str = ""                              # YYYY-MM-DD from the job board
     score: float = 0.0
     role_type: str = ""
     matched_skills: list = field(default_factory=list)
@@ -406,6 +487,11 @@ def evaluate_job(job: Job):
     if other_city:
         return False, f"JD says location is {other_city.title()}"
 
+    # --- freshness: old postings are usually already flooded with applicants -------
+    a = age_days(job.posted_on)
+    if a is not None and a > MAX_AGE_DAYS:
+        return False, f"Stale: posted {a} days ago"
+
     # --- title ----------------------------------------------------------------------
     if NON_TECH_TITLE.search(title_l):
         return False, "Non-tech role"
@@ -496,32 +582,47 @@ def evaluate_job(job: Job):
 # 5. SCRAPING
 # --------------------------------------------------------------------------------------
 
-def scrape_all() -> list[Job]:
-    import pandas as pd
+def _scrape_site(site: str, hours_old: int) -> list:
+    """All search terms for one site, sequentially with polite delays (sites run in parallel)."""
     from jobspy import scrape_jobs
 
     frames = []
-    for site in SITES:
-        for term in SEARCH_TERMS:
-            kwargs = dict(
-                site_name=[site], search_term=term, location=SEARCH_LOCATION,
-                results_wanted=RESULTS_PER_QUERY, hours_old=HOURS_OLD, country_indeed="India",
-                description_format="markdown", verbose=0,
-            )
-            if site == "linkedin":
-                kwargs["linkedin_fetch_description"] = True   # without this LinkedIn JDs are EMPTY
-            if site == "google":
-                kwargs["google_search_term"] = f"{term} jobs in Hyderabad, India since 3 days ago"
-            try:
-                log(f"Scraping {site:8s} | {term}")
-                df = scrape_jobs(**kwargs)
-                if df is not None and not df.empty:
-                    frames.append(df)
-            except TypeError as e:  # older/newer JobSpy signature
-                log(f"  {site} signature issue: {e}")
-            except Exception as e:
-                log(f"  {site} failed: {str(e)[:160]}")
-            time.sleep(random.uniform(2.5, 5.0))
+    for term in SEARCH_TERMS:
+        kwargs = dict(
+            site_name=[site], search_term=term, location=SEARCH_LOCATION,
+            results_wanted=RESULTS_PER_QUERY, hours_old=hours_old, country_indeed="India",
+            description_format="markdown", verbose=0,
+        )
+        if site == "linkedin":
+            kwargs["linkedin_fetch_description"] = True   # without this LinkedIn JDs are EMPTY
+        if site == "google":
+            since = "since yesterday" if hours_old <= 24 else "in the last 3 days"
+            kwargs["google_search_term"] = f"{term} jobs in Hyderabad, India {since}"
+        try:
+            df = scrape_jobs(**kwargs)
+            n = 0 if df is None else len(df)
+            log(f"{site:8s} | {term:36s} | {n} results")
+            if n:
+                frames.append(df)
+        except TypeError as e:  # older/newer JobSpy signature
+            log(f"{site:8s} | signature issue: {e}")
+            break
+        except Exception as e:
+            log(f"{site:8s} | {term} failed: {str(e)[:140]}")
+        time.sleep(random.uniform(*SCRAPE_DELAY))
+    return frames
+
+
+def scrape_all(hours_old: int) -> list[Job]:
+    import pandas as pd
+
+    started = time.time()
+    log(f"Scraping {len(SITES)} sites x {len(SEARCH_TERMS)} terms, jobs posted in the last {hours_old}h")
+    frames = []
+    with ThreadPoolExecutor(max_workers=max(1, len(SITES))) as pool:
+        for site_frames in pool.map(lambda site: _scrape_site(site, hours_old), SITES):
+            frames.extend(site_frames)
+    log(f"Scraping took {time.time() - started:.0f}s")
     if not frames:
         return []
 
@@ -546,7 +647,7 @@ def scrape_all() -> list[Job]:
             description=s(row.get("description")),
             is_remote=bool(row.get("is_remote")) if s(row.get("is_remote")) else False,
             job_level=s(row.get("job_level")), experience_range=s(row.get("experience_range")),
-            salary=salary,
+            salary=salary, posted_on=to_date_str(row.get("date_posted")),
         ))
     log(f"Scraped {len(jobs)} unique listings")
     return jobs
@@ -656,6 +757,8 @@ def load_master() -> str:
     if not MASTER_RESUME_PATH.exists():
         raise FileNotFoundError(f"{MASTER_RESUME_PATH.name} not found next to run_jobs.py")
     text = MASTER_RESUME_PATH.read_text(encoding="utf-8-sig")
+    # ${RESUME_EMAIL} style values come from GitHub Secrets (lets the repo be public safely)
+    text = re.sub(r"\$\{([A-Z0-9_]+)\}", lambda m: os.getenv(m.group(1)) or "{{FILL " + m.group(1) + "}}", text)
     if len(text.strip()) < 200:
         raise ValueError("master_resume.md is empty — fill it in first")
     return text
@@ -1003,6 +1106,9 @@ def job_card(job) -> str:
         f"🏢 {esc(get('company'))}",
         f"📍 {esc(get('location'))}  ·  🌐 {esc(s(get('site')).capitalize())}",
     ]
+    fresh = age_label(s(get("posted_on")))
+    if fresh:
+        lines.insert(1, f"{fresh}{' — apply early!' if fresh.startswith('🔥') else ''}")
     if ai.get("stipend_or_salary"):
         lines.append(f"💰 {esc(ai['stipend_or_salary'])}")
     if skills:
@@ -1227,8 +1333,26 @@ async def process_updates(bot, conn, seconds: int = 0):
 # 10. PIPELINE
 # --------------------------------------------------------------------------------------
 
+def compute_window(conn) -> tuple[int, float | None]:
+    """Hours to look back = time since the last scan + buffer. Returns (hours, gap_hours)."""
+    if HOURS_OLD:
+        return int(HOURS_OLD), None
+    last = parse_utc(meta_get(conn, "last_scan_at", ""))
+    if not last:
+        return int(FIRST_RUN_HOURS), None
+    gap = (datetime.now(timezone.utc) - last).total_seconds() / 3600
+    hours = math.ceil(max(0.0, gap - 0.1)) + int(WINDOW_BUFFER_HOURS)   # 3h05m gap -> 3h + 1h buffer
+    return int(min(MAX_WINDOW_HOURS, max(MIN_WINDOW_HOURS, hours))), gap
+
+
 async def scrape_and_alert(bot, conn):
-    scraped = await asyncio.to_thread(scrape_all)
+    scan_started = now_iso()
+    hours, gap = compute_window(conn)
+    overnight = gap is not None and gap >= OVERNIGHT_MIN_GAP_HOURS
+    cap = MAX_JOBS_OVERNIGHT if overnight else MAX_JOBS_PER_RUN
+    last_scan = parse_utc(meta_get(conn, "last_scan_at", ""))
+
+    scraped = await asyncio.to_thread(scrape_all, hours)
     stats = {"scraped": len(scraped), "seen": 0, "filtered": 0, "ai_rejected": 0, "sent": 0}
     reasons = {}
     candidates = []
@@ -1240,15 +1364,18 @@ async def scrape_and_alert(bot, conn):
         if not ok:
             stats["filtered"] += 1
             key = re.sub(r"\(.*", "", reason).strip()
+            key = "Stale" if key.startswith("Stale") else key
             reasons[key] = reasons.get(key, 0) + 1
             save_job(conn, job, "filtered", reason)
             continue
         candidates.append(job)
 
-    candidates.sort(key=lambda j: j.score, reverse=True)
-    to_screen = candidates[:AI_SCREEN_MAX]
-    for j in candidates[AI_SCREEN_MAX:]:
-        save_job(conn, j, "filtered", "Overflow: lower score this run")
+    # Freshest first: new postings fill up fast, so they get screened and sent first.
+    candidates.sort(key=recency_key)
+    screen_max = max(AI_SCREEN_MAX, cap + 8)
+    to_screen = candidates[:screen_max]
+    for j in candidates[screen_max:]:
+        save_job(conn, j, "filtered", "Overflow: older/lower match this run")
 
     if USE_AI_SCREEN and to_screen:
         await asyncio.to_thread(ai_screen, to_screen)
@@ -1266,8 +1393,16 @@ async def scrape_and_alert(bot, conn):
             stats["ai_rejected"] += 1
             continue
         final.append(j)
+    final.sort(key=recency_key)
 
-    for j in final[:MAX_JOBS_PER_RUN]:
+    if overnight and final:
+        since = last_scan.astimezone(IST).strftime("%I:%M %p").lstrip("0") if last_scan else "last night"
+        title = "🌙 <b>Overnight jobs</b>" if now_ist().hour < 11 else "📦 <b>Catch-up jobs</b>"
+        await bot.send_message(CHAT_ID, f"{title} — posted since {since}, freshest first "
+                                        f"({min(len(final), cap)} job{'s' if min(len(final), cap) != 1 else ''})",
+                               parse_mode="HTML")
+
+    for j in final[:cap]:
         try:
             await send_alert(bot, j)
             save_job(conn, j, "sent")
@@ -1275,18 +1410,72 @@ async def scrape_and_alert(bot, conn):
             await asyncio.sleep(0.6)
         except Exception as e:
             log(f"send failed for {j.title}: {e}")
-    for j in final[MAX_JOBS_PER_RUN:]:
+    for j in final[cap:]:
         save_job(conn, j, "filtered", "Over per-run limit")
 
-    log(f"Run stats: {stats} | reasons: {reasons}")
-    if SEND_RUN_SUMMARY:
+    meta_set(conn, "last_scan_at", scan_started)   # next scan looks back to the start of this one
+    log(f"Run stats: {stats} | window {hours}h | reasons: {reasons}")
+    if SEND_RUN_SUMMARY and (stats["sent"] or stats["filtered"] or stats["ai_rejected"]):
         top = ", ".join(f"{k} {v}" for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])[:4])
-        msg = (f"🔎 Scan done: {stats['scraped']} listings · {stats['seen']} already seen · "
+        msg = (f"🔎 Scan done ({hours}h window): {stats['scraped']} listings · {stats['seen']} already seen · "
                f"{stats['filtered'] + stats['ai_rejected']} filtered · <b>{stats['sent']} sent</b>")
         if top:
             msg += f"\n<i>Filtered: {esc(top)}</i>"
-        if stats["sent"] or stats["filtered"]:
-            await bot.send_message(CHAT_ID, msg, parse_mode="HTML")
+        await bot.send_message(CHAT_ID, msg, parse_mode="HTML")
+
+
+# --------------------------------------------------------------------------------------
+# 10b. PLAN (stdlib only — runs in GitHub Actions BEFORE installing anything, to save minutes)
+# --------------------------------------------------------------------------------------
+
+def telegram_has_pending() -> bool:
+    """Peek at Telegram for unhandled taps/commands without consuming them."""
+    if not TELEGRAM_TOKEN:
+        return False
+    offset = None
+    if DB_PATH.exists():
+        try:
+            c = sqlite3.connect(DB_PATH)
+            row = c.execute("SELECT value FROM meta WHERE key='tg_offset'").fetchone()
+            offset = row[0] if row else None
+            c.close()
+        except sqlite3.Error:
+            pass
+    params = {"timeout": 0, "limit": 1, "allowed_updates": json.dumps(["callback_query", "message"])}
+    if offset:
+        params["offset"] = offset
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?{urllib.parse.urlencode(params)}"
+    try:
+        with urllib.request.urlopen(url, timeout=20) as r:
+            return bool(json.loads(r.read().decode()).get("result"))
+    except Exception as e:
+        log(f"peek failed ({str(e)[:80]}) - assuming taps are waiting")
+        return True
+
+
+def plan(requested: str, trigger: str) -> str:
+    """Return 'scrape', 'approvals' or 'skip'."""
+    if requested == "scrape":
+        if trigger != "schedule":
+            return "scrape"                       # manual run or cron-job.org: always scan
+        # GitHub's own cron is only a BACKUP (it can be hours late):
+        if in_quiet_hours():
+            log("Backup scan inside quiet hours - leaving these jobs for the 8 AM overnight digest")
+            return "approvals" if telegram_has_pending() else "skip"
+        last = None
+        if DB_PATH.exists():
+            try:
+                c = sqlite3.connect(DB_PATH)
+                row = c.execute("SELECT value FROM meta WHERE key='last_scan_at'").fetchone()
+                c.close()
+                last = parse_utc(row[0]) if row else None
+            except sqlite3.Error:
+                pass
+        if last and datetime.now(timezone.utc) - last < timedelta(minutes=BACKUP_SKIP_MINUTES):
+            log("Backup scan: a scan already ran recently - skipping")
+            return "approvals" if telegram_has_pending() else "skip"
+        return "scrape"
+    return "approvals" if telegram_has_pending() else "skip"
 
 
 async def main(mode: str):
@@ -1304,12 +1493,13 @@ async def main(mode: str):
             await process_updates(bot, conn, 0)
         elif mode == "listen":
             log("Listening forever (Ctrl+C to stop)…")
-            last_scrape = 0.0
-            interval = env("SCRAPE_EVERY_MINUTES", 180) * 60
+            slots = {8, 11, 14, 17, 20, 23}                       # same IST schedule as the cloud
+            last_slot = None
             while True:
-                if time.time() - last_scrape > interval:
+                t = now_ist()
+                if t.hour in slots and (t.date(), t.hour) != last_slot:
                     await scrape_and_alert(bot, conn)
-                    last_scrape = time.time()
+                    last_slot = (t.date(), t.hour)
                 await process_updates(bot, conn, 60)
         else:  # scrape
             await process_updates(bot, conn, 0)
@@ -1349,6 +1539,7 @@ def selftest():
         ("Python Developer", "Hyderabad", "1 year of experience preferred." + filler, True),
         ("Java Developer", "Hyderabad", "Java Spring Boot microservices. 0-1 years experience. " * 8, False),
         ("Python Developer", "Hyderabad", "Company in business for 10+ years. Freshers apply." + filler, True),
+        ("Python Developer (stale)", "Hyderabad", "Freshers welcome." + filler, False),
         ("Python Developer", "Hyderabad", "3+ years experience managing Python language projects." + filler, False),
         ("Python Developer", "Madhapur, Hyderabad", "Qualifications: 2–3 yrs exp in Django/FastAPI." + filler, False),
         ("Associate Software Engineer", "Hyderabad, TG, IN", "Graduates of 2025-2027 batch eligible. Python." + filler, True),
@@ -1356,11 +1547,45 @@ def selftest():
     fails = 0
     for title, loc, desc, expect in cases:
         j = mk(title, loc, desc)
+        if "(stale)" in title:
+            j.posted_on = (now_ist().date() - timedelta(days=9)).isoformat()
         ok, reason = evaluate_job(j)
         mark = "PASS" if ok == expect else "FAIL"
         fails += mark == "FAIL"
         print(f"{mark}  expect={'keep' if expect else 'drop':4s} got={'keep' if ok else 'drop':4s}  "
               f"{title[:24]:24s} | {loc[:22]:22s} | {reason} | score={j.score} {j.notes}")
+
+    # --- schedule / freshness logic -------------------------------------------------------
+    def check(name, cond):
+        nonlocal fails
+        fails += 0 if cond else 1
+        print(f"{'PASS' if cond else 'FAIL'}  {name}")
+
+    today = now_ist().date()
+    a = mk("A", "Hyderabad", ""); a.posted_on, a.score = (today - timedelta(days=2)).isoformat(), 95
+    b = mk("B", "Hyderabad", ""); b.posted_on, b.score = today.isoformat(), 60
+    c = mk("C", "Hyderabad", ""); c.posted_on, c.score = today.isoformat(), 80
+    order = [x.title for x in sorted([a, b, c], key=recency_key)]
+    check(f"recency sort freshest first, then score -> {order}", order == ["C", "B", "A"])
+    check("quiet hours 23:45 IST", in_quiet_hours(datetime(2026, 1, 1, 23, 45, tzinfo=IST)))
+    check("quiet hours 03:00 IST", in_quiet_hours(datetime(2026, 1, 1, 3, 0, tzinfo=IST)))
+    check("not quiet 08:00 IST", not in_quiet_hours(datetime(2026, 1, 1, 8, 0, tzinfo=IST)))
+    check("not quiet 23:05 IST", not in_quiet_hours(datetime(2026, 1, 1, 23, 5, tzinfo=IST)))
+    check("age label today", age_label(today.isoformat()).startswith("🔥"))
+
+    tmp = sqlite3.connect(":memory:")
+    tmp.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    tmp.row_factory = sqlite3.Row
+    check(f"first run window = {FIRST_RUN_HOURS}h", compute_window(tmp)[0] == FIRST_RUN_HOURS)
+    night = (datetime.now(timezone.utc) - timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
+    tmp.execute("INSERT INTO meta VALUES ('last_scan_at', ?)", (night,))
+    h, gap = compute_window(tmp)
+    check(f"overnight window 9h gap -> {h}h, overnight={gap >= OVERNIGHT_MIN_GAP_HOURS}", h == 10 and gap >= OVERNIGHT_MIN_GAP_HOURS)
+    tmp.execute("UPDATE meta SET value=? WHERE key='last_scan_at'",
+                ((datetime.now(timezone.utc) - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S"),))
+    h, gap = compute_window(tmp)
+    check(f"daytime window 3h gap -> {h}h, not overnight", h == 4 and gap < OVERNIGHT_MIN_GAP_HOURS)
+    check("manual scrape always scans", plan("scrape", "workflow_dispatch") == "scrape")
 
     master = load_master()
     sample = {
@@ -1386,7 +1611,7 @@ def selftest():
     render_resume_docx(sample, OUTPUT_DIR / "selftest_resume.docx")
     print(f"\nGuard removed: {removed} | resume pages: {pages} | missing fields: {missing_fields(master)}")
     print(f"Contact parsed: {sample['_contact']}")
-    print(f"\n{len(cases) - fails}/{len(cases)} filter cases passed")
+    print(f"\n{len(cases)} filter cases + schedule checks: {'ALL PASSED' if not fails else str(fails) + ' FAILED'}")
     return fails
 
 
@@ -1394,6 +1619,14 @@ if __name__ == "__main__":
     mode = (sys.argv[1] if len(sys.argv) > 1 else "scrape").lower()
     if mode == "selftest":
         sys.exit(1 if selftest() else 0)
+    if mode == "plan":
+        requested = (sys.argv[2] if len(sys.argv) > 2 else "scrape").lower()
+        action = plan(requested, os.getenv("TRIGGER_EVENT", "workflow_dispatch"))
+        log(f"plan: requested={requested} trigger={os.getenv('TRIGGER_EVENT', 'manual')} -> {action}")
+        if os.getenv("GITHUB_OUTPUT"):
+            with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+                fh.write(f"action={action}\n")
+        sys.exit(0)
     if mode not in ("scrape", "approvals", "listen"):
-        sys.exit("usage: python run_jobs.py [scrape|approvals|listen|selftest]")
+        sys.exit("usage: python run_jobs.py [scrape|approvals|listen|plan|selftest]")
     asyncio.run(main(mode))
