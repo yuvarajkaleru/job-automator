@@ -1,40 +1,89 @@
-﻿name: Automated Job Pipeline
+name: Hyderabad Fresher Job Bot
 
 on:
   schedule:
-    - cron: '0 8,12,16,20 * * *'
+    # GitHub cron is UTC. IST = UTC + 5:30.
+    - cron: '23 3,7,12 * * *'      # SCAN for new jobs at ~08:53, 12:53, 17:53 IST
+    - cron: '*/30 2-18 * * *'      # APPROVALS: handle your Telegram taps every 30 min, ~08:00-00:30 IST
   workflow_dispatch:
-  push:
-    branches: [ main ]
+    inputs:
+      mode:
+        description: 'scrape = find jobs, approvals = only process Telegram taps'
+        type: choice
+        options: [scrape, approvals]
+        default: scrape
+
+# One run at a time, so two runs never fight over jobs.db or Telegram updates.
+concurrency:
+  group: job-bot
+  cancel-in-progress: false
 
 jobs:
-  run-pipeline:
+  run:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Cache Database
-        uses: actions/cache@v4
+      - name: Pick mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "23 3,7,12 * * *" ]; then
+            echo "mode=scrape" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=approvals" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore job database
+        uses: actions/cache/restore@v4
         with:
           path: jobs.db
-          key: jobs-db-${{ github.run_id }}
+          key: jobs-db-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             jobs-db-
 
-      - name: Set up Python & Node
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
+          cache: 'pip'
 
-      - name: Install Dependencies
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
         run: |
-          pip install python-jobspy python-telegram-bot pandas scikit-learn
+          pip install -r requirements.txt
           npm install -g @anthropic-ai/claude-code
 
-      - name: Execute Search & Poll Webhooks
+      - name: Run bot (${{ steps.mode.outputs.mode }})
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python run_jobs.py
+          # Optional tuning (see CONFIG at the top of run_jobs.py):
+          LISTEN_SECONDS: '240'
+          MAX_JOBS_PER_RUN: '12'
+          HOURS_OLD: '72'
+        run: python run_jobs.py ${{ steps.mode.outputs.mode }}
+
+      - name: Save job database
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: jobs.db
+          key: jobs-db-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Keep generated resumes (7 days)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tailored-docs-${{ github.run_id }}
+          path: generated/
+          if-no-files-found: ignore
+          retention-days: 7
