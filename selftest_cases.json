@@ -542,6 +542,135 @@
    "Freshers welcome. Send your resume to hr@acmetech.in.{filler}",
    {},
    true
+  ],
+  [
+   "Python Django Developer",
+   "Hyderabad",
+   "Freshers welcome. 0-1 years.{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer (Django/FastAPI)",
+   "Hyderabad",
+   "Freshers welcome. 0-1 years.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Freshers welcome. Must have strong knowledge of Django REST Framework.{filler}",
+   {},
+   false
+  ],
+  [
+   "Backend Developer",
+   "Hyderabad",
+   "Freshers welcome. Hands-on experience in Flask is mandatory.{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Freshers welcome. Experience with Django, Flask or FastAPI.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Freshers welcome. Good knowledge of any Python web framework (e.g. Django, Flask).{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Freshers welcome. Knowledge of Django is a plus.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Freshers welcome. We built our platform on Django and React.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Freshers welcome. Requirements: Python, 0-1 years of experience with Django.{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Intern",
+   "Hyderabad",
+   "Final year students. Strong Python, Node.js basics. Django is good to have.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad, Telangana, India",
+   "Freshers welcome. 0-1 years.{filler}",
+   {
+    "no_date": true,
+    "site": "google jobs · LinkedIn"
+   },
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad, Telangana, India",
+   "Freshers welcome. 0-1 years.{filler}",
+   {
+    "no_date": true,
+    "site": "acme careers"
+   },
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad, Telangana, India",
+   "Freshers welcome. 0-1 years.{filler}",
+   {
+    "site": "google jobs · PlacementIndia"
+   },
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad, Telangana, India",
+   "Freshers welcome. 0-1 years.{filler}",
+   {
+    "posted_days_ago": 48,
+    "site": "google jobs · LinkedIn"
+   },
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad, Telangana, India",
+   "Freshers welcome. 0-1 years.{filler}",
+   {
+    "posted_days_ago": 1,
+    "site": "naukri"
+   },
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad, Telangana, India",
+   "Freshers welcome. 0-1 years.{filler}",
+   {
+    "no_date": true,
+    "site": "linkedin"
+   },
+   true
   ]
  ],
  "sample_job_title": "Python Developer",

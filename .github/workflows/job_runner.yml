@@ -2,8 +2,10 @@ name: Hyderabad Fresher Job Bot
 
 # ------------------------------------------------------------------------------------------
 # WHEN IT RUNS (IST)
-#   Job scans : 8 AM (overnight digest), 11 AM, 2 PM, 5 PM, 8 PM, 11 PM  + anytime you send /scan
-#   Taps      : Apply / Skip / JD check / commands are handled within ~1-2 min of tapping
+#   Full scans  : 8 AM (overnight digest), 11 AM, 2 PM, 5 PM, 8 PM, 11 PM  + anytime you send /scan
+#   Quick scans : every other hour 9 AM - 10 PM (LinkedIn / Naukri / Indeed top searches + company
+#                 feeds, jobs from the last 24h; silent unless a new job is found) -> you apply first
+#   Taps        : Apply / Skip / JD check / commands are handled within ~1-2 min of tapping
 #
 # PRIMARY trigger = the Cloudflare Worker relay (cloudflare-worker.js). Every minute it starts the
 #   scheduled scans on time, and starts an "approvals" run only when you tapped or typed something,
@@ -16,9 +18,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'scrape = find new jobs, approvals = only process Telegram taps'
+        description: 'scrape = full scan, quick = fast hourly scan, approvals = only process Telegram taps'
         type: choice
-        options: [scrape, approvals]
+        options: [scrape, quick, approvals]
         default: scrape
   schedule:
     # UTC = IST - 5:30  ->  8:20, 11:20, 14:20, 17:20, 20:20, 23:20 IST

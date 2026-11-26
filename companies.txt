@@ -2,10 +2,9 @@
 # Only jobs located in Hyderabad are kept, and all the normal fresher / Python / experience / 48-hour
 # rules apply. Company jobs land in the same two lists (🔥 very recent / 📅 last 48 hours).
 #
-# The scan summary says "careers 21/23 company feeds ... (failed: X, Y)". For a failed Workday company:
-# open its careers site, click any job, and copy the address up to the site name, e.g.
-#   https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite
-# then replace its line below - or move the company to the Firecrawl section.
+# The scan summary says "careers 24/26 company feeds ... (failed: X, Y)". A failed company usually
+# moved its careers site: open its careers page, click any job, copy the new address and replace its
+# line below (or move the company to the Firecrawl section at the bottom).
 
 # ---- Official job feeds: free, no key, full job descriptions -------------------------------------
 greenhouse zenoti
@@ -15,39 +14,48 @@ smartrecruiters BoschGroup Bosch
 amazon Amazon
 
 # ---- Workday career sites (public JSON, no key) - format: workday <site URL> <Company name> -------
-workday https://qualcomm.wd5.myworkdayjobs.com/External Qualcomm
 workday https://micron.wd1.myworkdayjobs.com/External Micron
 workday https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite NVIDIA
 workday https://intel.wd1.myworkdayjobs.com/External Intel
 workday https://salesforce.wd12.myworkdayjobs.com/External_Career_Site Salesforce
 workday https://novartis.wd3.myworkdayjobs.com/Novartis_Careers Novartis
 workday https://amgen.wd1.myworkdayjobs.com/Careers Amgen
-workday https://lilly.wd5.myworkdayjobs.com/LLY Eli Lilly
+workday https://lilly.wd115.myworkdayjobs.com/en-US/LLY Eli Lilly
 workday https://cigna.wd5.myworkdayjobs.com/cignacareers Evernorth (Cigna)
 workday https://invesco.wd1.myworkdayjobs.com/IVZ Invesco
-workday https://chubb.wd1.myworkdayjobs.com/chubbcareers Chubb
 workday https://lbg.wd3.myworkdayjobs.com/LBG_Careers Lloyds Technology Centre
 workday https://warnerbros.wd5.myworkdayjobs.com/global Warner Bros. Discovery
-workday https://mcdonalds.wd5.myworkdayjobs.com/McDonaldsGlobalOffices McDonald's
 workday https://carrier.wd5.myworkdayjobs.com/jobs Carrier
-workday https://pega.wd3.myworkdayjobs.com/Pegasystems Pega
-workday https://ea.wd1.myworkdayjobs.com/EA_External Electronic Arts
 workday https://commvault.wd1.myworkdayjobs.com/Commvault Commvault
+
+# ---- Eightfold career sites (public JSON, no key) - format: eightfold <careers site> <Company> ----
+eightfold https://apply.careers.microsoft.com Microsoft
+eightfold https://careers.qualcomm.com Qualcomm
+
+# ---- Oracle Recruiting career sites (public JSON, no key) - format: oracle <site URL> <Company> ---
+oracle https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001 JPMorgan Chase
+oracle https://eeho.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_45001 Oracle
+oracle https://fa-ewgu-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001 Chubb
+
+# ---- Job RSS feeds (free, no key) - format: rss <feed URL> <Company> | <default city> ------------
+# {term} is replaced by each company search term from profile.json ("workday_search").
+rss https://careers.wipro.com/services/rss/job/?locale=en_US&keywords=({term})%20AND%20(Hyderabad)&sortColumn=referencedate&sortDirection=desc Wipro | Hyderabad
+rss https://jobs.mcdonalds.com/services/rss/job/?locale=en_US&keywords=(Hyderabad)&sortColumn=referencedate&sortDirection=desc McDonald's | Hyderabad
+rss https://jobs.ea.com/en_US/careers/SearchJobs/feed/?search=Hyderabad Electronic Arts | Hyderabad
 
 # ---- Careers pages read with Firecrawl (needs FIRECRAWL_API_KEY; 8 pages a day in rotation) -------
 # The first visit to a page only records the jobs already listed (their age is unknown); after that,
 # every job that NEWLY appears on the page is opened and checked. "no job links on X" in the scan
 # summary means that page's URL should be replaced with the company's job-search results page.
 # format: firecrawl <job list URL> <Company> | <default city>
-firecrawl https://jobs.careers.microsoft.com/global/en/search?lc=Hyderabad%2C%20Telangana%2C%20India&exp=Students%20and%20graduates Microsoft | Hyderabad
 firecrawl https://www.google.com/about/careers/applications/jobs/results/?location=Hyderabad%2C%20India&target_level=EARLY Google | Hyderabad
 firecrawl https://www.accenture.com/in-en/careers/jobsearch?jk=python&ct=Hyderabad Accenture | Hyderabad
 firecrawl https://www2.deloitte.com/in/en/careers/students.html Deloitte | Hyderabad
 firecrawl https://career.infosys.com/joblist Infosys | Hyderabad
 firecrawl https://www.tcs.com/careers/india/fresher TCS | Hyderabad
-firecrawl https://careers.wipro.com/search/?q=python&locationsearch=Hyderabad Wipro | Hyderabad
 firecrawl https://careers.cognizant.com/global-en/jobs/?keyword=python&location=Hyderabad Cognizant | Hyderabad
 firecrawl https://www.capgemini.com/in-en/careers/join-capgemini/job-search/?search_term=python&location=Hyderabad Capgemini | Hyderabad
+firecrawl https://www.pega.com/about/careers/job-listings?f%5B0%5D=location%3A25961 Pega | Hyderabad
 firecrawl https://careers.techmahindra.com/ Tech Mahindra | Hyderabad
 firecrawl https://www.cyient.com/careers Cyient | Hyderabad
 firecrawl https://www.valuelabs.com/careers/ ValueLabs | Hyderabad

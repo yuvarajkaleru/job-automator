@@ -2,9 +2,12 @@
  * Job-bot relay — Cloudflare Worker (free plan), one Cron Trigger: "* * * * *" (every minute).
  *
  * Every minute it does ONE of these:
- *   1. At 8:00, 11:00, 14:00, 17:00, 20:00, 23:00 IST -> starts the GitHub "scrape" run (on time,
- *      unlike GitHub's own cron).
- *   2. Otherwise -> peeks at Telegram. If you sent /scan or tapped a button, and no GitHub run is
+ *   1. At 8:00, 11:00, 14:00, 17:00, 20:00, 23:00 IST -> starts the GitHub "scrape" run (full scan, on
+ *      time, unlike GitHub's own cron).
+ *   2. At 9, 10, 12, 13, 15, 16, 18, 19, 21, 22 IST (on the hour) -> starts a "quick" run: LinkedIn /
+ *      Naukri / Indeed top searches + all company feeds, silent unless it finds a new job. Skipped if a
+ *      run is still busy. This is what makes you one of the first applicants.
+ *   3. Otherwise -> peeks at Telegram. If you sent /scan or tapped a button, and no GitHub run is
  *      already busy, it starts an "approvals" run that handles it (≈1–2 min later you get the result).
  *      Nothing pending -> it does nothing, so it costs no GitHub minutes.
  *
@@ -17,7 +20,8 @@
  *   GH_REPO             (text)    yuvarajkaleru/job-automator
  */
 
-const SCAN_HOURS_IST = [8, 11, 14, 17, 20, 23];
+const SCAN_HOURS_IST = [8, 11, 14, 17, 20, 23];                    // full scans
+const QUICK_HOURS_IST = [9, 10, 12, 13, 15, 16, 18, 19, 21, 22];    // hourly quick scans in between
 const WORKFLOW_FILE = "job_runner.yml";
 
 export default {
@@ -37,6 +41,10 @@ async function tick(env) {
 
   if (minute === 0 && SCAN_HOURS_IST.includes(hour)) {
     await dispatch(env, "scrape");
+    return;
+  }
+  if (minute === 0 && QUICK_HOURS_IST.includes(hour)) {
+    if (!(await runActive(env))) await dispatch(env, "quick", false); // busy -> the running scan covers it
     return;
   }
 

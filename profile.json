@@ -5,7 +5,7 @@
   "timezone_label": "IST",
   "bot_tag": "yuvaraj-job-alert-bot",
   "grad_year": 2027,
-  "candidate_summary": "FRESHER: final-year B.Tech (Computer Science & Business Systems) student at GITAM, graduating 2027, zero years of full-time experience. One internship (Python Developer Intern, Infosys Springboard, Nov 2025 - Jan 2026). Skills: Python, FastAPI, Pydantic, SQLAlchemy, PostgreSQL/MySQL/SQLite, JWT/RBAC, REST APIs, HTML/CSS/JavaScript, Git, Docker/AWS basics, Pandas.",
+  "candidate_summary": "FRESHER: final-year B.Tech (Computer Science & Business Systems) student at GITAM, graduating 2027, zero years of full-time experience. One internship (Python Developer Intern, Infosys Springboard, Nov 2025 - Jan 2026). Backend framework: FastAPI only (no Django or Flask experience). Skills: Python, FastAPI, Pydantic, SQLAlchemy, PostgreSQL/MySQL/SQLite, JWT/RBAC, REST APIs, HTML/CSS/JavaScript, Git, Docker/AWS basics, Pandas.",
   "wants": "Python / FastAPI backend, Python full-stack, or fresher SDE / software engineer jobs and internships (6-month internships in 2027 are welcome) located in HYDERABAD only - on-site or hybrid in Hyderabad; fully remote or any other city is NOT wanted.",
   "experience_min_years": 0,
   "experience_max_years": 1,
@@ -14,6 +14,32 @@
   "soft_preferred_years": true,
   "min_score": 30,
   "company_feed_max_age_days": 2,
+  "require_posting_date": true,
+  "blocked_sources": [
+    "placementindia",
+    "wisdomjobs",
+    "freshersworld",
+    "fresherslive",
+    "freshersnow",
+    "jooble",
+    "jobrapido",
+    "talent.com",
+    "whatjobs",
+    "expertini",
+    "jobted",
+    "bebee",
+    "jora.com",
+    "careerjet",
+    "trovit",
+    "jobsora",
+    "learn4good",
+    "simplyhired",
+    "jobleads",
+    "resumegeni",
+    "adzuna",
+    "quikr",
+    "olx"
+  ],
   "locations": [
     {
       "name": "Hyderabad",
@@ -80,6 +106,9 @@
       ],
       "short_codes": [
         "hyd"
+      ],
+      "region_keywords": [
+        "telangana"
       ]
     }
   ],
@@ -98,7 +127,7 @@
     "Associate Software Engineer",
     "Graduate Engineer Trainee",
     "Software Engineer Trainee",
-    "Django Developer Fresher",
+    "Python REST API Developer",
     "Backend Engineer Fresher",
     "Software Engineer Intern 2027",
     "Programmer Analyst Trainee",
@@ -149,16 +178,14 @@
   "fresher_signal": "\\bfreshers?\\b|entry[\\s-]level|0\\s*-\\s*1\\s*years?|0\\s*-\\s*2\\s*years?|no experience|recent graduates?|final[\\s-]year|pre[\\s-]final|campus|\\b0\\s*years?\\b|graduate (engineer )?trainee|\\b202[6-7]\\b",
   "no_fresher_pattern": "experienced (candidates?|professionals?) only|not for freshers|freshers? (need|should) not apply|no freshers",
   "short_jd_ok_titles": [
-    "(python|fastapi|django|flask|backend|back[- ]end|full[- ]?stack).*(intern|trainee|fresher|graduate|junior|\\bjr\\b|entry|associate)|(intern|trainee|fresher|graduate|junior|\\bjr\\b|entry|associate).*(python|fastapi|django|flask|backend|back[- ]end|full[- ]?stack)",
+    "(python|fastapi|backend|back[- ]end|full[- ]?stack).*(intern|trainee|fresher|graduate|junior|\\bjr\\b|entry|associate)|(intern|trainee|fresher|graduate|junior|\\bjr\\b|entry|associate).*(python|fastapi|backend|back[- ]end|full[- ]?stack)",
     "(\\bintern|trainee|apprentice|graduate engineer).*(software|developer|engineer|\\bsde\\b|programmer|backend|full)|(software|developer|engineer|\\bsde\\b|programmer|backend|full).*(\\bintern|trainee|apprentice)"
   ],
   "short_jd_ok_levels": "entry level|internship",
-  "title_satisfies_must": "python|fastapi|django|flask",
+  "title_satisfies_must": "python|fastapi",
   "jd_must_mention_any": [
     "python",
     "fastapi",
-    "django",
-    "flask",
     "any programming language",
     "any language",
     "programming language such as",
@@ -182,7 +209,7 @@
       "points": 10
     },
     {
-      "pattern": "python|django|flask",
+      "pattern": "python",
       "points": 6
     },
     {
@@ -233,6 +260,7 @@
   "screen_notes": [
     "The candidate is a FRESHER: reject jobs that are clearly for experienced people or say freshers cannot apply.",
     "Fresher SDE / software engineer roles are welcome even if Python is not the only language, as long as Python is mentioned or any language / OOP / DSA is acceptable. Reject roles that need a specific other stack only (Java-only, .NET, PHP, Salesforce, SAP, mobile, QA/testing).",
+    "His only backend framework is FastAPI. Reject jobs where Django or Flask is REQUIRED (must have / mandatory / strong or N years of Django/Flask) and FastAPI is not accepted. KEEP jobs that list FastAPI as an option (e.g. 'Django/Flask/FastAPI'), accept any Python framework, give Django/Flask only as examples, or call them nice-to-have.",
     "Internships are welcome (he graduates in 2027, so 6-month internships in 2027 are fine).",
     "If the job wants '2+ years' only as 'preferred' / 'nice to have' and clearly also considers freshers, accept it and say so in reason.",
     "Work location must be Hyderabad (on-site or hybrid). Reject fully remote jobs and other cities."
@@ -427,9 +455,31 @@
       20,
       23
     ],
+    "quick_slots_ist": [
+      9,
+      10,
+      12,
+      13,
+      15,
+      16,
+      18,
+      19,
+      21,
+      22
+    ],
     "quiet_start": "23:30",
     "quiet_end": "07:30",
     "backup_cron_utc": "50 2,5,8,11,14,17 * * *"
+  },
+  "quick_scan": {
+    "_readme": "Hourly quick scans between the full scans: these job boards with only the top search terms (the first 2 every hour + 1 that changes), plus every free company feed, jobs from the last 24 hours. No Google Jobs / Firecrawl credits, and nothing is sent unless a new job is found.",
+    "sites": [
+      "linkedin",
+      "naukri",
+      "indeed"
+    ],
+    "terms_per_site": 3,
+    "hours_old": 24
   },
   "firecrawl": {
     "careers_pages_per_day": 8,
@@ -444,5 +494,32 @@
   },
   "follow_up_days": 4,
   "follow_up_pitch": "I'm a final-year B.Tech (CSBS) student graduating in 2027 who builds Python/FastAPI backends - my projects include a live FastAPI ticket system with JWT auth and role-based access.",
-  "alumni_school": "GITAM"
+  "alumni_school": "GITAM",
+  "reject_if_required": {
+    "skills": [
+      "django",
+      "flask"
+    ],
+    "unless": [
+      "fastapi",
+      "fast api",
+      "any python framework",
+      "any python web framework",
+      "any web framework",
+      "any framework",
+      "python frameworks",
+      "python web frameworks",
+      "such as",
+      "like",
+      "eg",
+      "for example",
+      "or similar",
+      "or equivalent",
+      "similar framework",
+      "similar frameworks",
+      "any one of",
+      "one of"
+    ],
+    "why": "you know FastAPI, not Django/Flask"
+  }
 }
