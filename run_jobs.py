@@ -134,7 +134,7 @@ BACKUP_SKIP_MINUTES = env("BACKUP_SKIP_MINUTES", 120)  # GitHub backup cron skip
 
 REQUIRE_FULL_JD = env("REQUIRE_FULL_JD", True)    # skip jobs whose JD is too short to verify
 MIN_JD_CHARS = env("MIN_JD_CHARS", 250)
-FILTER_VERSION = 6   # bump when filters change: jobs filtered by older rules get re-checked
+FILTER_VERSION = 7   # bump when filters change: jobs filtered by older rules get re-checked
 REJECT_MIN_YEARS = env("REJECT_MIN_YEARS", EXP_MAX + 1)   # JD asks >= this many years -> rejected
 WARN_MIN_YEARS = env("WARN_MIN_YEARS", EXP_MAX)           # JD asks >= this -> shown with a warning
 MIN_SCORE = env("MIN_SCORE", float(PROFILE.get("min_score", 40.0)))
@@ -173,7 +173,8 @@ SEND_RUN_SUMMARY = env("SEND_RUN_SUMMARY", True)
 
 # Cities from profile.json. A job location must contain one of a city's keywords (or be remote
 # in an allowed country, for a city with "remote_search": true).
-ALL_CITY_KEYWORDS = [k for loc in LOCATIONS for k in loc.get("keywords", [])]
+# On-site cities only: a remote search's keywords (e.g. "india") only label remote jobs, never a city.
+ALL_CITY_KEYWORDS = [k for loc in LOCATIONS if not loc.get("remote_search") for k in loc.get("keywords", [])]
 REMOTE_ALLOWED = any(loc.get("remote_search") for loc in LOCATIONS)
 REMOTE_COUNTRIES = [c.lower() for c in PROFILE.get("remote_countries", ["india"])]
 OTHER_CITIES = [
@@ -557,10 +558,13 @@ def match_location(location: str, is_remote: bool = False):
             return city["name"]
         if any(k in loc for k in city.get("keywords", [])):
             return city["name"]
-    if REMOTE_ALLOWED and (is_remote or re.search(r"\bremote\b|work from home|\bwfh\b|anywhere", loc)):
-        if not loc.strip() or re.fullmatch(r"\W*(remote|work from home|wfh|anywhere)\W*", loc) \
+    if REMOTE_ALLOWED and (is_remote or re.search(r"\bremote\b|work from home|\bwfh\b|anywhere|worldwide", loc)):
+        if not loc.strip() or re.fullmatch(r"\W*(remote|work from home|wfh|anywhere|worldwide)\W*", loc) \
                 or any(re.search(rf"\b{re.escape(c)}\b", loc) for c in REMOTE_COUNTRIES):
-            return next(c["name"] for c in LOCATIONS if c.get("remote_search"))
+            remotes = [c for c in LOCATIONS if c.get("remote_search")]
+            return next((c["name"] for c in remotes      # e.g. "Remote (India)" vs "Remote (Worldwide)"
+                         if any(re.search(rf"\b{re.escape(k)}\b", loc) for k in c.get("keywords", []))),
+                        remotes[0]["name"])
     return None
 
 
@@ -633,6 +637,37 @@ def blocked_source(*texts) -> str:
         return ""
     m = BLOCKED_RE.search(re.sub(r"\s+", "", fold(" ".join(s(t) for t in texts))))
     return m.group(0) if m else ""
+
+
+# Role focus (all optional, from profile.json):
+#  "main_language"  - drop jobs whose day-to-day language is another one and yours is only listed as an option
+#                     ("Write clean Java ... Java, or another language such as Kotlin, Go or Python")
+#  "title_needs_jd" - e.g. AI / ML / data-science titles are kept only when the JD shows API / backend work
+#  "remote_rules"   - for remote listings: drop "US only / must live in X / work authorization" jobs and
+#                     flag time-zone-overlap demands
+_ML = PROFILE.get("main_language") or {}
+MAIN_MINE = re.compile(_ML["mine"], re.I) if _ML.get("mine") else None
+MAIN_OTHERS = [(name, re.compile(p, re.I)) for name, p in (_ML.get("others") or {}).items()]
+MAIN_UNLESS = re.compile(_ML["unless"], re.I) if _ML.get("unless") else None
+MAIN_RATIO = float(_ML.get("ratio", 2))
+TITLE_NEEDS_JD = [(re.compile(r["title"], re.I), re.compile(r["jd"], re.I), s(r.get("why")) or "Role doesn't match your focus")
+                  for r in PROFILE.get("title_needs_jd", [])]
+_RR = PROFILE.get("remote_rules") or {}
+REMOTE_REJECT = [re.compile(p, re.I) for p in _RR.get("reject", [])]
+REMOTE_FLAGS = [(re.compile(f["pattern"], re.I), s(f.get("note")), int(f.get("points", 0))) for f in _RR.get("flag", [])]
+REMOTE_CITY_NAMES = {c["name"] for c in LOCATIONS if c.get("remote_search")}
+
+
+def main_other_language(title_l: str, desc_l: str) -> str:
+    """'Java' when Java is the job's real language and Python only appears as an option ('' otherwise)."""
+    if not (MAIN_MINE and MAIN_OTHERS):
+        return ""
+    text = f"{title_l}\n{desc_l}"
+    if MAIN_UNLESS and MAIN_UNLESS.search(text):
+        return ""
+    mine = len(MAIN_MINE.findall(text))
+    name, n = max(((nm, len(p.findall(text))) for nm, p in MAIN_OTHERS), key=lambda x: x[1])
+    return name if n >= 2 and n >= MAIN_RATIO * max(mine, 1) else ""
 _rx = lambda key: re.compile(PROFILE[key], re.I) if PROFILE.get(key) else None
 TITLE_SATISFIES_MUST = _rx("title_satisfies_must")      # e.g. "python|fastapi|backend" in the title counts as "mentions python"
 SOFT_LEVEL = _rx("soft_level_pattern")                   # e.g. LinkedIn "Mid-Senior": allowed only with a fresher signal
@@ -733,6 +768,16 @@ def evaluate_job(job: Job):
     other_city = jd_location_conflict(desc)
     if other_city:
         return False, f"JD says location is {other_city.title()}"
+    remote_pts = 0
+    if city in REMOTE_CITY_NAMES:              # remote listing: can it really be done from where you live?
+        bad = next((m for m in (p.search(desc_l) for p in REMOTE_REJECT) if m), None)
+        if bad:
+            return False, f"Remote, but not open to you (\"{bad.group(0).strip()[:70]}\")"
+        for pat, note, points in REMOTE_FLAGS:
+            if pat.search(desc_l):
+                remote_pts += points
+                if note:
+                    job.notes.append(note)
 
     # --- freshness: old postings are usually already flooded with applicants -------
     a = age_days(job.posted_on)
@@ -831,6 +876,13 @@ def evaluate_job(job: Job):
     needs = required_unknown_skill(title_l, desc_l)
     if needs:
         return False, f"Requires {needs.title()} ({_REQ.get('why', 'not one of your skills')})"
+    if not job.short_jd:
+        other_lang = main_other_language(title_l, desc_l)
+        if other_lang:
+            return False, f"Main language is {other_lang} (Python only listed as an option)"
+        for tpat, jpat, why in TITLE_NEEDS_JD:
+            if tpat.search(title_l) and not jpat.search(desc_l):
+                return False, why
 
     # --- graduation batch (only for students) --------------------------------------------
     batch_ok = None
@@ -879,13 +931,15 @@ def evaluate_job(job: Job):
     if re.search(r"\bbond\b|service agreement", desc_l):
         pts -= 8
         job.notes.append("⚠️ Mentions a bond / service agreement")
+    pts += remote_pts
     for pat, note, points in JD_FLAGS:
         if pat.search(title_l) or pat.search(desc_l):
             pts += points
             if note:
                 job.notes.append(note)
     required_gaps = [g.strip() for g in GAP_SKILLS
-                     if re.search(rf"(must|required|mandatory|strong|expertise|hands[- ]on)[^.\n]{{0,60}}(?<![a-z]){re.escape(g.strip())}(?![a-z])", desc_l)]
+                     if re.search(rf"(must|required|mandatory|strong|expertise|hands[- ]on)[^.\n]{{0,60}}(?<![a-z]){re.escape(g.strip())}(?![a-z])"
+                                  rf"|(?<![a-z]){re.escape(g.strip())}(?![a-z])[^.\n]{{0,25}}\b(is|are) (required|mandatory|a must)\b", desc_l)]
     if required_gaps:
         pts -= 4 * len(required_gaps)
         job.notes.append("🧩 Also wants: " + ", ".join(required_gaps))
@@ -927,13 +981,14 @@ def rotate_terms(site: str, terms: list, k: int) -> list:
     return fixed + (rest[start:] + rest[:start])[:slots]
 
 
-def linkedin_terms(terms: list) -> list:
-    """LinkedIn blocks quickly, so each scan uses only LINKEDIN_MAX_TERMS searches. With
+def linkedin_terms(terms: list, k: int | None = None, area: str = "") -> list:
+    """LinkedIn blocks quickly, so each scan uses only LINKEDIN_MAX_TERMS searches per area. With
     profile.json -> linkedin_rotate, the first `linkedin_always` terms run every scan and the rest take
     turns, so over a day every term gets its LinkedIn search."""
-    if not PROFILE.get("linkedin_rotate") or len(terms) <= LINKEDIN_MAX_TERMS:
-        return terms[:LINKEDIN_MAX_TERMS]
-    return rotate_terms("linkedin", terms, LINKEDIN_MAX_TERMS)
+    k = LINKEDIN_MAX_TERMS if k is None else k
+    if not PROFILE.get("linkedin_rotate") or len(terms) <= k:
+        return terms[:k]
+    return rotate_terms(f"linkedin_{area}" if area else "linkedin", terms, k)
 
 
 def _jobspy_desc_flag(fn) -> str:
@@ -962,10 +1017,12 @@ def _scrape_site(site: str, hours_old: int, quick: bool = False) -> list:
         if site not in city.get("sites", []):
             continue
         terms = SEARCH_TERMS[:int(city.get("max_terms", len(SEARCH_TERMS)))]
+        li_k = int(city.get("linkedin_max_terms", LINKEDIN_MAX_TERMS))     # e.g. fewer for remote searches
         if quick:
-            terms = rotate_terms(site, terms, min(QUICK_TERMS, LINKEDIN_MAX_TERMS) if site == "linkedin" else QUICK_TERMS)
+            k = int(city.get("quick_terms", QUICK_TERMS))                  # 0 = not in hourly quick scans
+            terms = rotate_terms(f"{site}_{city['name']}", terms, min(k, li_k) if site == "linkedin" else k)
         elif site == "linkedin":
-            terms = linkedin_terms(terms)
+            terms = linkedin_terms(terms, li_k, city["name"])
         plan_ += [(city, t) for t in terms]
     delay = LINKEDIN_DELAY if site == "linkedin" else SCRAPE_DELAY
     for i, (city, term) in enumerate(plan_):
@@ -1590,6 +1647,7 @@ def scrape_all(hours_old: int, quick: bool = False) -> list[Job]:
         extra_futures = [pool.submit(scrape_company_boards), pool.submit(scrape_reed, hours_old)]
         if not quick:
             extra_futures.append(pool.submit(scrape_serpapi))      # Google Jobs: monthly allowance, full scans only
+            extra_futures.append(pool.submit(scrape_remote_boards))  # remote-job boards: full scans only
         for site_frames in pool.map(lambda site: _scrape_site(site, hours_old, quick), sites):
             frames.extend(site_frames)
         board_jobs = []
@@ -2142,6 +2200,100 @@ def _ago_days(text: str):
         return 1
     m = re.search(r"(\d+)\+?\s*(week|month)", t)
     return int(m.group(1)) * (7 if m.group(2) == "week" else 30) if m else None
+
+
+# ---- Remote-job boards (free public APIs, full scans only; profile.json -> remote_boards) ------------------
+# Used within each board's terms: every alert names the board and links back to its job page; Himalayas'
+# apply link is used unchanged; Remotive is read at most twice a day (it asks for no more than 4 calls a day,
+# and its jobs appear there with a 24-hour delay).
+REMOTE_BOARDS = PROFILE.get("remote_boards") or {}
+REMOTE_BOARD_TERMS = [s(t) for t in REMOTE_BOARDS.get("terms", ["python"]) if s(t)] or ["python"]
+
+
+def _remote_himalayas() -> list[dict]:
+    out = []
+    for term in REMOTE_BOARD_TERMS:
+        q = urllib.parse.urlencode({"q": term, "country": REMOTE_BOARDS.get("country", "India"), "sort": "recent"})
+        data = _get_json(f"https://himalayas.app/jobs/api/search?{q}") or {}
+        time.sleep(2)
+        for j in data.get("jobs") or []:
+            restr = [s(x) for x in j.get("locationRestrictions") or [] if s(x)]
+            guid = s(j.get("guid"))
+            out.append(dict(title=s(j.get("title")), company=s(j.get("companyName")),
+                            location=", ".join(restr) if restr else "Worldwide",
+                            url=s(j.get("applicationLink")) or guid, description=strip_html(j.get("description")),
+                            posted_on=_ts_to_date(j.get("pubDate")),
+                            job_level=", ".join(s(x) for x in j.get("seniority") or []),
+                            source="Himalayas", source_link=guid))
+    return out
+
+
+def _remote_remoteok() -> list[dict]:
+    data = _get_json("https://remoteok.com/api") or []
+    out = []
+    for j in data if isinstance(data, list) else []:
+        if not isinstance(j, dict) or not j.get("position"):
+            continue                                   # the first element is Remote OK's terms notice
+        tags = ", ".join(s(x) for x in j.get("tags") or [])
+        out.append(dict(title=s(j.get("position")), company=s(j.get("company")), location=s(j.get("location")),
+                        url=s(j.get("url")), posted_on=_ts_to_date(j.get("epoch")) or s(j.get("date"))[:10],
+                        description=strip_html(j.get("description")) + (f"\n\nTags: {tags}" if tags else ""),
+                        source="Remote OK", source_link=s(j.get("url"))))
+    return out
+
+
+def _remote_remotive() -> list[dict]:
+    today = now_ist().strftime("%Y-%m-%d")
+    day = API_STATE.get("remotive_day") if isinstance(API_STATE.get("remotive_day"), dict) else {}
+    used = int(day.get("n", 0)) if day.get("date") == today else 0
+    if used >= int(REMOTE_BOARDS.get("remotive_per_day", 2)):
+        return []
+    API_STATE["remotive_day"] = {"date": today, "n": used + 1}
+    q = urllib.parse.urlencode({"category": "software-dev", "search": REMOTE_BOARD_TERMS[0], "limit": 100})
+    data = _get_json(f"https://remotive.com/api/remote-jobs?{q}") or {}
+    return [dict(title=s(j.get("title")), company=s(j.get("company_name")),
+                 location=s(j.get("candidate_required_location")) or "Worldwide", url=s(j.get("url")),
+                 description=strip_html(j.get("description")), posted_on=s(j.get("publication_date"))[:10],
+                 source="Remotive", source_link=s(j.get("url")))
+            for j in data.get("jobs") or [] if isinstance(j, dict)]
+
+
+REMOTE_BOARD_FETCHERS = {"himalayas": _remote_himalayas, "remoteok": _remote_remoteok, "remotive": _remote_remotive}
+
+
+def scrape_remote_boards() -> list[Job]:
+    """Remote-job boards. Kept only when open to candidates where you live (your remote countries,
+    'Worldwide' or no restriction), fresh, and with a title worth a look; the usual rules run later."""
+    if not (REMOTE_ALLOWED and REMOTE_BOARDS.get("boards")):
+        return []
+    jobs, seen = [], set()
+    for board in REMOTE_BOARDS["boards"]:
+        fn = REMOTE_BOARD_FETCHERS.get(s(board).lower())
+        if not fn:
+            continue
+        try:
+            raw = fn()
+        except Exception as e:                          # one broken board never stops the scan
+            log(f"remote   | {board} failed: {str(e)[:100]}")
+            SITE_HEALTH[board] = "error"
+            continue
+        kept = 0
+        for r in raw:
+            url = s(r.get("url"))
+            jid = job_key(url)
+            if not url.startswith("http") or jid in seen or jid in KNOWN_IDS or _too_old(s(r.get("posted_on"))) \
+                    or not title_prefilter(r.get("title")) or not match_location(s(r.get("location")), True):
+                continue
+            seen.add(jid)
+            kept += 1
+            jobs.append(Job(id=jid, fp=fingerprint(s(r["title"]), s(r.get("company"))), title=s(r["title"]),
+                            company=s(r.get("company")) or "Unknown company", location=s(r.get("location")) or "Remote",
+                            url=url, site=s(r.get("source")).lower() or board, description=s(r.get("description"))[:12000],
+                            is_remote=True, job_level=s(r.get("job_level")), posted_on=s(r.get("posted_on")),
+                            notes=[f"🌐 Source: {r['source']} — {r['source_link']}"] if r.get("source_link") else []))
+        SITE_HEALTH[board] = f"ok {kept} of {len(raw)}"
+        log(f"remote   | {board}: {len(raw)} jobs, {kept} open to you and worth a look")
+    return jobs
 
 
 JOB_BOARD_RANK = ("linkedin.", "naukri.", "instahyre.", "cutshort.", "wellfound.", "hirist.", "internshala.",

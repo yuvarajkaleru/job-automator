@@ -5,12 +5,12 @@
   "timezone_label": "IST",
   "bot_tag": "yuvaraj-job-alert-bot",
   "grad_year": 2027,
-  "candidate_summary": "FRESHER: final-year B.Tech (Computer Science & Business Systems) student at GITAM, graduating 2027, zero years of full-time experience. One internship (Python Developer Intern, Infosys Springboard, Nov 2025 - Jan 2026). Backend framework: FastAPI only (no Django or Flask experience). Skills: Python, FastAPI, Pydantic, SQLAlchemy, PostgreSQL/MySQL/SQLite, JWT/RBAC, REST APIs, HTML/CSS/JavaScript, Git, Docker/AWS basics, Pandas.",
-  "wants": "Python / FastAPI backend, Python full-stack, or fresher SDE / software engineer jobs and internships (6-month internships in 2027 are welcome) located in HYDERABAD only - on-site or hybrid in Hyderabad; fully remote or any other city is NOT wanted.",
+  "candidate_summary": "FRESHER: final-year B.Tech (Computer Science & Business Systems) student at GITAM, graduating 2027, zero years of full-time experience. One internship (Python Developer Intern, Infosys Springboard, Nov 2025 - Jan 2026: FitPulse health analytics with Prophet forecasting). Focus: FastAPI backends with ML / AI integration (has integrated ML models with FastAPI; final-year project in progress: an AI interview assistant with FastAPI + OpenAI/Gemini). Backend framework: FastAPI only (no Django or Flask experience). Skills: Python, FastAPI, Pydantic, SQLAlchemy, PostgreSQL/MySQL/SQLite, JWT/RBAC, REST APIs, HTML/CSS/JavaScript, Git, Docker/AWS basics, Pandas/NumPy, machine-learning basics.",
+  "wants": "PRIMARY: FastAPI / Python backend roles that build AI-integrated applications (backend + LLM / OpenAI / Gemini / ML model integration, models served through APIs). ALSO GOOD: Python backend / API developer, Python full-stack with HTML/CSS/JS, and fresher SDE roles where Python is one of the main languages; internships welcome (6-month internships in 2027 too). LOCATION: Hyderabad (on-site or hybrid) OR fully remote jobs he can do from Hyderabad - remote in India, or worldwide / APAC remote open to candidates in India. NOT wanted: on-site or hybrid jobs in other cities, roles whose main language is Java / Go / C# / Node.js / PHP etc. (Python only as an option), data engineering, DevOps / cloud, QA / testing, mobile, pure frontend, and AI/ML or data-science roles that are only model training, research or analytics with no API/backend work.",
   "experience_min_years": 0,
   "experience_max_years": 1,
   "reject_fresher_roles": false,
-  "reject_remote": true,
+  "reject_remote": false,
   "soft_preferred_years": true,
   "min_score": 30,
   "company_feed_max_age_days": 2,
@@ -110,29 +110,76 @@
       "region_keywords": [
         "telangana"
       ]
+    },
+    {
+      "name": "Remote (India)",
+      "search": "India",
+      "country_indeed": "India",
+      "google": "remote in India",
+      "sites": [
+        "linkedin",
+        "indeed"
+      ],
+      "remote_search": true,
+      "keywords": [
+        "india"
+      ],
+      "short_codes": [],
+      "max_terms": 6,
+      "linkedin_max_terms": 3,
+      "quick_terms": 2
+    },
+    {
+      "name": "Remote (Worldwide)",
+      "search": "Worldwide",
+      "country_indeed": "India",
+      "google": "remote",
+      "sites": [
+        "linkedin"
+      ],
+      "remote_search": true,
+      "keywords": [
+        "worldwide",
+        "anywhere",
+        "apac",
+        "asia pacific",
+        "asia"
+      ],
+      "short_codes": [],
+      "max_terms": 6,
+      "linkedin_max_terms": 2,
+      "quick_terms": 0
     }
   ],
-  "remote_countries": [],
+  "remote_countries": [
+    "india",
+    "worldwide",
+    "anywhere in the world",
+    "work from anywhere",
+    "apac",
+    "asia pacific",
+    "asia"
+  ],
   "search_terms": [
-    "Python Developer Fresher",
     "FastAPI Developer",
-    "SDE 1",
-    "Python Backend Developer",
-    "Software Engineer Fresher",
-    "Python Intern",
-    "Software Development Engineer Intern",
-    "Backend Developer Intern",
+    "Python AI Developer",
+    "Python Backend Developer Fresher",
+    "AI Engineer Fresher",
+    "Generative AI Developer",
+    "LLM Application Developer",
+    "AI ML Intern Python",
+    "Backend Developer Python Intern",
+    "Python Developer Fresher",
     "Junior Python Developer",
-    "Python Full Stack Developer",
-    "Associate Software Engineer",
-    "Graduate Engineer Trainee",
-    "Software Engineer Trainee",
+    "Python Full Stack Developer Fresher",
+    "GenAI Engineer Fresher",
     "Python REST API Developer",
+    "AI Integration Engineer",
+    "Machine Learning Engineer Fresher",
+    "Software Engineer Python Fresher",
+    "Python Intern",
+    "Associate Software Engineer Python",
     "Backend Engineer Fresher",
-    "Software Engineer Intern 2027",
-    "Programmer Analyst Trainee",
-    "API Developer Python",
-    "Entry Level Software Engineer",
     "Python Developer 0-1 years"
   ],
   "linkedin_max_terms": 6,
@@ -160,8 +207,8 @@
     ]
   },
   "workday_search": [
-    "software",
     "python",
+    "ai engineer",
     "intern",
     "graduate"
   ],
@@ -170,8 +217,8 @@
     "intern",
     "python"
   ],
-  "title_must_match": "python|fastapi|django|flask|backend|back[- ]end|full[- ]?stack|software|developer|engineer|\\bsde\\b|programmer|coder|trainee|intern|apprentice|graduate|associate|technolog|member of technical staff|\\bmts\\b|\\bget\\b|api|web",
-  "title_reject": "sales|marketing|tele ?caller|\\bbpo\\b|voice|customer (support|service)|call cent|\\bhr\\b|recruit|accountant|teacher|tutor|faculty|trainer|content writer|business development|counsel+or|data entry|field (executive|engineer)|medical|nurse|pharma|clinical|mechanical|civil|electrical|electronics|\\bvlsi\\b|embedded|firmware|php|laravel|\\.net\\b|dotnet|\\bc#|java developer|java engineer|spring boot|salesforce|guidewire|\\bsap\\b|mainframe|cobol|\\bios\\b|android|flutter|react native|swift|kotlin|unity|game developer|\\bqa\\b|tester|testing|test engineer|selenium|playwright|manual test|network engineer|system administrator|desktop support|technical support|service desk",
+  "title_must_match": "python|fastapi|django|flask|backend|back[- ]end|full[- ]?stack|software|developer|engineer|\\bsde\\b|programmer|coder|trainee|intern|apprentice|graduate|associate|technolog|member of technical staff|\\bmts\\b|\\bget\\b|api|web|\\bai\\b|\\bml\\b|machine learning|\\bllms?\\b|gen ?ai|generative|artificial intelligence|data scien|\\bnlp\\b|deep learning|prompt",
+  "title_reject": "sales|marketing|tele ?caller|\\bbpo\\b|voice|customer (support|service)|call cent|\\bhr\\b|recruit|accountant|teacher|tutor|faculty|trainer|content writer|business development|counsel+or|data entry|field (executive|engineer)|medical|nurse|pharma|clinical|mechanical|civil|electrical|electronics|\\bvlsi\\b|embedded|firmware|php|laravel|\\.net\\b|dotnet|\\bc#|java developer|java engineer|spring boot|salesforce|guidewire|\\bsap\\b|mainframe|cobol|\\bios\\b|android|flutter|react native|swift|kotlin|unity|game developer|\\bqa\\b|tester|testing|test engineer|selenium|playwright|manual test|network engineer|system administrator|desktop support|technical support|service desk|data engineer|\\betl\\b|big data|data warehouse|\\bbi developer|power ?bi|tableau|database administrator|\\bdba\\b|devops|dev ops|\\bsre\\b|site reliability|cloud (engineer|support|administrator|architect)|infrastructure engineer|data analyst|business analyst|\\bmis\\b|research scientist|researcher|java full ?stack|\\bmern\\b|mean stack|node\\.?js (developer|engineer)|golang|\\bgo developer|c\\+\\+|\\bruby\\b|rails developer|\\bscala\\b|rust developer|^(?!.*(full[- ]?stack|back[- ]?end|python|fastapi|\\bapi)).*\\b(front[- ]?end|ui|react|angular|vue(\\.?js)?)\\b",
   "title_too_senior": "\\b(senior|sr\\.?|lead|principal|manager|architect|staff|head|director|vp|vice president|chief|consultant ii|expert|specialist ii)\\b|\\b(sde|swe|engineer|developer|analyst|programmer)\\s*[-–]?\\s*(ii|iii|iv|2|3|4)\\b|\\bl[3-9]\\b|\\b(mid|mid-level|experienced)\\b",
   "title_too_junior": "",
   "soft_level_pattern": "senior",
@@ -186,17 +233,7 @@
   "jd_must_mention_any": [
     "python",
     "fastapi",
-    "any programming language",
-    "any language",
-    "programming language such as",
-    "languages like",
-    "languages such as",
-    "object oriented programming",
-    "object-oriented programming",
-    "oops",
-    "data structures and algorithms",
-    "data structures & algorithms",
-    "dsa"
+    "fast api"
   ],
   "title_rescue": {
     "word": "python",
@@ -205,8 +242,12 @@
   },
   "title_bonus": [
     {
-      "pattern": "fastapi",
-      "points": 10
+      "pattern": "fast ?api",
+      "points": 14
+    },
+    {
+      "pattern": "\\b(ai|ml|ai/ml|llms?|gen ?ai|generative ai|machine learning|artificial intelligence)\\b",
+      "points": 12
     },
     {
       "pattern": "python",
@@ -226,6 +267,21 @@
   ],
   "default_role_type": "Fresher Full-Time",
   "jd_flags": [
+    {
+      "pattern": "\\A(?=[\\s\\S]*?\\bfast ?api\\b)(?=[\\s\\S]*?\\b(llms?|large language models?|openai|gemini|gen ?ai|generative ai|machine learning|ml models?|ai models?|rag|langchain|hugging ?face|model serving|inference)\\b)",
+      "note": "🎯 FastAPI + AI — exactly your focus",
+      "points": 15
+    },
+    {
+      "pattern": "\\A(?=[\\s\\S]*?\\b(apis?|back[- ]?end|microservices?|python)\\b)(?=[\\s\\S]*?\\b(llms?|large language models?|openai|gemini|gen ?ai|generative ai|rag|langchain|ml models?|machine learning models?|ai models?|ai[- ]powered|ai integration|integrat\\w* (ai|llms?|ml))\\b)",
+      "note": "🤖 AI-integrated backend — your target role",
+      "points": 10
+    },
+    {
+      "pattern": "internships?( and [^.\\n]{0,40})? (count|counts|are counted|will be considered|is considered)|including internships|internship experience (counts|is counted|is considered)",
+      "note": "✅ Internships count toward the experience asked",
+      "points": 6
+    },
     {
       "pattern": "\\bfreshers?\\b|entry[\\s-]level|0\\s*-\\s*1\\s*years?|0\\s*-\\s*2\\s*years?|no experience|recent graduates?|final[\\s-]year|campus|graduate (engineer )?trainee",
       "note": "🌱 Fresher-friendly",
@@ -259,17 +315,18 @@
   ],
   "screen_notes": [
     "The candidate is a FRESHER: reject jobs that are clearly for experienced people or say freshers cannot apply.",
-    "Fresher SDE / software engineer roles are welcome even if Python is not the only language, as long as Python is mentioned or any language / OOP / DSA is acceptable. Reject roles that need a specific other stack only (Java-only, .NET, PHP, Salesforce, SAP, mobile, QA/testing).",
+    "His TARGET role is a FastAPI / Python backend that integrates AI: LLM APIs (OpenAI, Gemini), ML models served through APIs, AI-powered features in web apps. Give these the highest fit. Python backend / API roles and Python full-stack roles (HTML/CSS/JS) are also good.",
+    "Fresher SDE / software engineer roles are fine only if Python is one of the job's main languages. Reject roles whose day-to-day stack is another language (Java, Go, C#/.NET, Node.js, PHP ...) even when Python is listed as an option, and roles that need a specific other stack only (Salesforce, SAP, mobile, QA/testing).",
+    "Reject data engineering (Spark / Kafka / Flink pipelines), DevOps / cloud, pure frontend, and AI/ML or data-science roles that are only model training, research or analytics with no API / backend work.",
     "His only backend framework is FastAPI. Reject jobs where Django or Flask is REQUIRED (must have / mandatory / strong or N years of Django/Flask) and FastAPI is not accepted. KEEP jobs that list FastAPI as an option (e.g. 'Django/Flask/FastAPI'), accept any Python framework, give Django/Flask only as examples, or call them nice-to-have.",
-    "Internships are welcome (he graduates in 2027, so 6-month internships in 2027 are fine).",
-    "If the job wants '2+ years' only as 'preferred' / 'nice to have' and clearly also considers freshers, accept it and say so in reason.",
-    "Work location must be Hyderabad (on-site or hybrid). Reject fully remote jobs and other cities."
+    "Remote jobs: keep only if he can do them from Hyderabad, India - remote in India, or worldwide / APAC remote open to candidates in India. Reject remote jobs limited to the US / EU / UK or other countries, needing work authorization there, or needing relocation."
   ],
   "tailor_notes": [
     "- The candidate is a FRESHER (final-year student, graduating 2027). Never claim full-time experience; the Infosys Springboard role is an internship.",
     "- Summary: fresher framing, max 45 words. Skills: 4-5 categories.",
     "- Projects matter most: the 3 most relevant (prefer Priority: high), 2-3 bullets each, with the repo / live link from the master resume.",
-    "- Cover letter: fresher tone; mention availability - internships now, full-time from 2027 (pick what fits the job type)."
+    "- Cover letter: fresher tone; mention availability - internships now, full-time from 2027 (pick what fits the job type).",
+    "- For AI / LLM / ML jobs, lead with FastAPI + ML-model integration and the FitPulse ML work. Mention the AI Interview Platform only as ongoing / in design (planned FastAPI + OpenAI/Gemini) - never as finished, and never list OpenAI/Gemini/LLM as skills he has shipped."
   ],
   "skill_weights": {
     "fastapi": 12,
@@ -305,7 +362,18 @@
     "orm": 2,
     "microservices": 1,
     "data structures": 2,
-    "oop": 2
+    "oop": 2,
+    "machine learning": 5,
+    "ml model": 6,
+    "model deployment": 6,
+    "llm": 6,
+    "openai": 5,
+    "gemini": 4,
+    "generative ai": 6,
+    "ai integration": 6,
+    "prompt engineering": 2,
+    "nlp": 2,
+    "prophet": 2
   },
   "skill_aliases": {
     "rest api": "rest(ful)?\\s*api",
@@ -317,7 +385,17 @@
     "git": "\\bgit\\b",
     "oop": "\\boops?\\b|object[- ]oriented",
     "data structures": "data structures|\\bdsa\\b",
-    "api": "\\bapis?\\b"
+    "api": "\\bapis?\\b",
+    "machine learning": "machine learning|\\bml\\b",
+    "ml model": "\\b(ml|machine learning|ai|predictive) models?\\b",
+    "model deployment": "model (deployment|serving)|\\binference\\b|(deploy\\w*|serv(e|ing)|expos\\w*)[^.\\n]{0,30}\\bmodels?\\b",
+    "llm": "\\bllms?\\b|large language models?",
+    "openai": "open ?ai|\\bgpt[- ]?\\d|chatgpt",
+    "gemini": "\\bgemini\\b",
+    "generative ai": "generative ai|\\bgen ?ai\\b",
+    "ai integration": "integrat\\w*[^.\\n]{0,40}\\b(ai|ml|llms?|models?|openai|gemini)\\b|\\b(ai|ml|llm)[- ]?(powered|driven|enabled|integration)",
+    "prompt engineering": "prompt (engineering|design)",
+    "nlp": "\\bnlp\\b|natural language processing"
   },
   "gap_skills": [
     "django",
@@ -342,7 +420,11 @@
     "graphql",
     "azure",
     "gcp",
-    "ci/cd"
+    "ci/cd",
+    "langchain",
+    "llamaindex",
+    "pytorch",
+    "tensorflow"
   ],
   "skill_display": {
     "fastapi": "FastAPI",
@@ -373,7 +455,10 @@
     "uvicorn": "Uvicorn",
     "orm": "ORM",
     "data structures": "Data Structures & Algorithms",
-    "oop": "Object-Oriented Programming"
+    "oop": "Object-Oriented Programming",
+    "machine learning": "Machine Learning (basics)",
+    "nlp": "NLP (basics)",
+    "prophet": "Prophet"
   },
   "gap_display": {
     "django": "Django",
@@ -398,7 +483,11 @@
     "graphql": "GraphQL",
     "azure": "Azure",
     "gcp": "GCP",
-    "ci/cd": "CI/CD"
+    "ci/cd": "CI/CD",
+    "langchain": "LangChain",
+    "llamaindex": "LlamaIndex",
+    "pytorch": "PyTorch",
+    "tensorflow": "TensorFlow"
   },
   "skill_home": {
     "backend": [
@@ -435,17 +524,20 @@
     "ai": [
       "pandas",
       "numpy",
-      "streamlit"
+      "streamlit",
+      "machine learning",
+      "nlp",
+      "prophet"
     ],
     "language": [
       "data structures",
       "oop"
     ]
   },
-  "profile_text": "Python backend developer FastAPI Pydantic REST API SQLAlchemy ORM PostgreSQL MySQL SQLite JWT OAuth2 bcrypt role based access control RBAC HTML CSS JavaScript frontend full stack Git GitHub Docker AWS Linux Pandas NumPy Streamlit Prophet data pipeline uvicorn CRUD API design pagination fresher intern trainee graduate B.Tech computer science 2027 software engineer SDE data structures algorithms OOP",
+  "profile_text": "Python backend developer FastAPI Pydantic REST API SQLAlchemy ORM PostgreSQL MySQL SQLite JWT OAuth2 bcrypt role based access control RBAC HTML CSS JavaScript frontend full stack Git GitHub Docker AWS Linux Pandas NumPy Streamlit Prophet data pipeline uvicorn CRUD API design pagination fresher intern trainee graduate B.Tech computer science 2027 software engineer SDE data structures algorithms OOP AI integration LLM OpenAI Gemini API generative AI ML model integration model serving inference FastAPI machine learning NLP prompt engineering AI interview assistant AI-powered backend",
   "skills_heading": "TECHNICAL SKILLS",
   "show_github": true,
-  "headline_example": "Python Backend Developer (FastAPI) | B.Tech CSBS 2027",
+  "headline_example": "Python Backend Developer (FastAPI + AI Integration) | B.Tech CSBS 2027",
   "schedule": {
     "slots_ist": [
       8,
@@ -493,7 +585,7 @@
     "min_score": 75
   },
   "follow_up_days": 4,
-  "follow_up_pitch": "I'm a final-year B.Tech (CSBS) student graduating in 2027 who builds Python/FastAPI backends - my projects include a live FastAPI ticket system with JWT auth and role-based access.",
+  "follow_up_pitch": "I'm a final-year B.Tech (CSBS) student graduating in 2027 who builds FastAPI backends and integrates ML models into them - my projects include a live FastAPI ticket system with JWT auth and role-based access, and I'm building an AI interview assistant with FastAPI.",
   "alumni_school": "GITAM",
   "reject_if_required": {
     "skills": [
@@ -521,5 +613,67 @@
       "one of"
     ],
     "why": "you know FastAPI, not Django/Flask"
+  },
+  "remote_label": "Hyderabad, India (remote in India, or worldwide remote open to candidates in India)",
+  "title_needs_jd": [
+    {
+      "title": "\\b(ai|ml|ai/ml|ai-ml|machine learning|deep learning|data scien\\w*|nlp|computer vision|llms?|gen ?ai|generative ai|artificial intelligence|prompt)\\b",
+      "jd": "fast ?api|\\brest(ful)?\\b|\\bapis?\\b|back[- ]?end|microservices?|web services?|model serving|serv(e|ing) (the )?models?|inference (api|service|endpoint)s?|deploy\\w*[^.\\n]{0,40}(endpoint|service|production)|integrat\\w*[^.\\n]{0,40}(llm|openai|gemini|models?|\\bai\\b)",
+      "why": "AI/ML role without API / backend work (model training or research only)"
+    }
+  ],
+  "main_language": {
+    "mine": "\\bpython\\b|\\bfast ?api\\b",
+    "unless": "\\bfast ?api\\b",
+    "ratio": 2,
+    "others": {
+      "Java": "\\bjava\\b(?!\\s*script)",
+      "Go": "\\bgolang\\b|\\bgo (?:developer|engineer|programming|language|lang|services?)\\b|\\bin go\\b",
+      "C++": "c\\+\\+",
+      "C# / .NET": "\\bc#|\\basp\\.net\\b|(?<![\\w.])\\.net\\b|\\bdotnet\\b",
+      "Node.js": "\\bnode\\.?js\\b|\\bexpress\\.?js\\b|\\bnestjs\\b",
+      "Kotlin": "\\bkotlin\\b",
+      "Scala": "\\bscala\\b",
+      "Ruby": "\\bruby\\b|\\brails\\b",
+      "Rust": "\\brust\\b",
+      "PHP": "\\bphp\\b|\\blaravel\\b"
+    }
+  },
+  "remote_rules": {
+    "_readme": "Only for remote listings. 'reject': the job can't be done from India. 'flag': worth knowing before you apply.",
+    "reject": [
+      "\\b(us|u\\.s\\.|usa|united states|north america|americas|canada|uk|united kingdom|europe|eu|emea|latam|latin america|germany|australia|new zealand)[- ](only|based only|residents? only|citizens? only)\\b",
+      "\\b(must|need to|needs to|required to|should) (be )?(physically )?(located|based|resid(e|ing)|liv(e|ing)) (in|within) (the )?(us|u\\.s\\.|usa|united states|north america|canada|uk|united kingdom|europe|eu|emea|latam|latin america|germany|australia)\\b",
+      "\\b(authori[sz]ed|eligible|legally (authori[sz]ed|able|permitted)|permission|right) to work (in|within|for) (the )?(us|u\\.s\\.|usa|united states|uk|united kingdom|eu|europe|european union|canada|australia)\\b",
+      "\\b(us|u\\.s\\.) (citizens?|citizenship|persons?)\\b[^.\\n]{0,40}\\b(required|only|must)\\b|\\bgreen card\\b|security clearance|\\bw-?2 only\\b",
+      "\\brelocat(e|ion)\\b[^.\\n]{0,30}\\b(is )?(required|mandatory|necessary)\\b|\\bmust (be willing to |be able to )?relocate\\b"
+    ],
+    "flag": [
+      {
+        "pattern": "\\b(overlap\\w*|work\\w*|availab\\w*|align\\w*|support\\w*|coverage)\\b[^.\\n]{0,60}\\b(est|edt|pst|pdt|cst|cdt|mst|et|pt|cet|cest|bst|gmt|us|u\\.s\\.|american|european|eu|uk|emea) (business |working |office )?(hours|time ?zones?)\\b",
+        "note": "⚠️ Needs US/EU working-hours overlap (late evenings from India)",
+        "points": -5
+      },
+      {
+        "pattern": "\\b(\\d|one|two|three|four) days? (a|per|each) week\\b[^.\\n]{0,40}\\boffice\\b|\\boffice\\b[^.\\n]{0,40}\\b(\\d|one|two|three|four) days? (a|per|each) week\\b",
+        "note": "🏢 Mentions office days — check which city the office is in",
+        "points": 0
+      }
+    ]
+  },
+  "remote_boards": {
+    "_readme": "Free remote-job boards (full scans only). Each alert names the board and links to its job page, as their terms ask. Remotive is read at most twice a day.",
+    "boards": [
+      "himalayas",
+      "remoteok",
+      "remotive"
+    ],
+    "terms": [
+      "python",
+      "fastapi",
+      "llm"
+    ],
+    "country": "India",
+    "remotive_per_day": 2
   }
 }

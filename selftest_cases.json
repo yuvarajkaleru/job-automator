@@ -307,7 +307,7 @@
    "Hyderabad",
    "Freshers welcome. Strong coding skills in any programming language (Java, C++ or Go), data structures and algorithms, problem solving. 0-1 years. Freshers welcome. Strong coding skills in any programming language (Java, C++ or Go), data structures and algorithms, problem solving. 0-1 years. Freshers welcome. Strong coding skills in any programming language (Java, C++ or Go), data structures and algorithms, problem solving. 0-1 years. Freshers welcome. Strong coding skills in any programming language (Java, C++ or Go), data structures and algorithms, problem solving. 0-1 years. ",
    {},
-   true
+   false
   ],
   [
    "Software Developer (naukri 0-2)",
@@ -398,7 +398,7 @@
    {
     "is_remote": true
    },
-   false
+   true
   ],
   [
    "Software Development Engineer",
@@ -671,6 +671,144 @@
     "site": "linkedin"
    },
    true
+  ],
+  [
+   "Associate Software Engineer",
+   "Hyderabad, Telangana, India",
+   "Your opportunity. At New Relic, you will learn and contribute to our massive-scale streaming data platform that powers our industry-leading observability ingestion pipelines.\nWhat you'll do\n- Build real-time data pipelines: Design and develop streaming pipelines that capture database changes from PostgreSQL and MySQL and deliver them to Apache Kafka using Apache Flink.\n- Develop platform code: Write clean, well-tested Java for shared libraries, connectors, and developer tooling.\n- Design data schemas (Protobuf).\n- Operate production systems: Deploy, monitor, and troubleshoot high-volume pipelines running on AWS, Docker, and Kubernetes. Take part in an on-call rotation.\n- Write and improve unit and integration tests.\nThis role requires\n- Bachelor's degree in Computer Science, Engineering, or a related field, or equivalent practical experience\n- 1 to 2 years of software engineering experience. Internships and substantial project work count.\n- Strong programming fundamentals in Java, or another object-oriented language such as Kotlin, Scala, Go, or Python\n- Solid grasp of data structures, algorithms, and problem solving\n- Working knowledge of SQL and relational databases such as PostgreSQL or MySQL\n- Familiarity with Git, unit testing, and the Linux command line\nGood to have skills\n- Exposure to streaming or messaging systems such as Apache Kafka, Apache Flink, Spark Streaming\n- Hands-on experience with AWS (S3 or IAM), Docker, or Kubernetes\n- Experience with CI/CD pipelines and observability\nBonus points if you have\n- Academic projects, internships, or personal work involving backend services, data pipelines.\nPlease note that visa sponsorship is not available for this position.",
+   {},
+   false
+  ],
+  [
+   "AI Engineer Fresher",
+   "Hyderabad, Telangana, India",
+   "We are building AI-powered products. You will build REST APIs with Python and FastAPI that integrate LLMs (OpenAI, Gemini) and ML models into our web app, store data in PostgreSQL and ship features end to end. Freshers and 2027 graduates welcome; 0-1 years of experience. Good to have: prompt engineering, Docker, Git. You will work with senior engineers on model serving, inference endpoints and AI integration. We are building AI-powered products. You will build REST APIs with Python and FastAPI that integrate LLMs (OpenAI, Gemini) and ML models into our web app, store data in PostgreSQL and ship features end to end. Freshers and 2027 graduates welcome; 0-1 years of experience. Good to have: prompt engineering, Docker, Git. You will work with senior engineers on model serving, inference endpoints and AI integration. ",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad, Telangana, India",
+   "We are building AI-powered products. You will build REST APIs with Python and FastAPI that integrate LLMs (OpenAI, Gemini) and ML models into our web app, store data in PostgreSQL and ship features end to end. Freshers and 2027 graduates welcome; 0-1 years of experience. Good to have: prompt engineering, Docker, Git. You will work with senior engineers on model serving, inference endpoints and AI integration. We are building AI-powered products. You will build REST APIs with Python and FastAPI that integrate LLMs (OpenAI, Gemini) and ML models into our web app, store data in PostgreSQL and ship features end to end. Freshers and 2027 graduates welcome; 0-1 years of experience. Good to have: prompt engineering, Docker, Git. You will work with senior engineers on model serving, inference endpoints and AI integration. ",
+   {},
+   true
+  ],
+  [
+   "Machine Learning Engineer",
+   "Hyderabad, Telangana, India",
+   "Machine Learning Engineer: train and fine-tune deep learning models with PyTorch, run experiments, read research papers, improve model accuracy and publish results. Strong maths and statistics. Python. Freshers welcome, 0-1 years. You will work on model architectures, hyper-parameter tuning and evaluation metrics. Machine Learning Engineer: train and fine-tune deep learning models with PyTorch, run experiments, read research papers, improve model accuracy and publish results. Strong maths and statistics. Python. Freshers welcome, 0-1 years. You will work on model architectures, hyper-parameter tuning and evaluation metrics. ",
+   {},
+   false
+  ],
+  [
+   "Machine Learning Engineer",
+   "Hyderabad, Telangana, India",
+   "Machine Learning Engineer (fresher): build Python services that deploy ML models to production as REST APIs using FastAPI, monitor inference endpoints and integrate models into our backend. Freshers welcome, 0-1 years. Python, SQL, Git, Docker basics. Machine Learning Engineer (fresher): build Python services that deploy ML models to production as REST APIs using FastAPI, monitor inference endpoints and integrate models into our backend. Freshers welcome, 0-1 years. Python, SQL, Git, Docker basics. ",
+   {},
+   true
+  ],
+  [
+   "Data Scientist",
+   "Hyderabad, Telangana, India",
+   "Data Scientist: analyse business data with Python, Pandas and SQL, build dashboards and statistical models, present insights to stakeholders. Freshers welcome, 0-1 years. Strong statistics. Data Scientist: analyse business data with Python, Pandas and SQL, build dashboards and statistical models, present insights to stakeholders. Freshers welcome, 0-1 years. Strong statistics. Data Scientist: analyse business data with Python, Pandas and SQL, build dashboards and statistical models, present insights to stakeholders. Freshers welcome, 0-1 years. Strong statistics. ",
+   {},
+   false
+  ],
+  [
+   "Data Engineer",
+   "Hyderabad, Telangana, India",
+   "Build Spark and Kafka pipelines in Python. Freshers welcome, 0-1 years. ETL, Airflow, data lakes. Build Spark and Kafka pipelines in Python. Freshers welcome, 0-1 years. ETL, Airflow, data lakes. Build Spark and Kafka pipelines in Python. Freshers welcome, 0-1 years. ETL, Airflow, data lakes. Build Spark and Kafka pipelines in Python. Freshers welcome, 0-1 years. ETL, Airflow, data lakes. ",
+   {},
+   false
+  ],
+  [
+   "Frontend Developer",
+   "Hyderabad, Telangana, India",
+   "Build UIs with React and TypeScript. Freshers welcome, 0-1 years. HTML, CSS, JavaScript. Build UIs with React and TypeScript. Freshers welcome, 0-1 years. HTML, CSS, JavaScript. Build UIs with React and TypeScript. Freshers welcome, 0-1 years. HTML, CSS, JavaScript. Build UIs with React and TypeScript. Freshers welcome, 0-1 years. HTML, CSS, JavaScript. Build UIs with React and TypeScript. Freshers welcome, 0-1 years. HTML, CSS, JavaScript. ",
+   {},
+   false
+  ],
+  [
+   "Full Stack Developer",
+   "Hyderabad, Telangana, India",
+   "Full stack role: Python FastAPI backend and React frontend. React is required (must have). Freshers welcome, 0-1 years. REST APIs, PostgreSQL, HTML, CSS, JavaScript. Full stack role: Python FastAPI backend and React frontend. React is required (must have). Freshers welcome, 0-1 years. REST APIs, PostgreSQL, HTML, CSS, JavaScript. Full stack role: Python FastAPI backend and React frontend. React is required (must have). Freshers welcome, 0-1 years. REST APIs, PostgreSQL, HTML, CSS, JavaScript. ",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "India",
+   "Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. ",
+   {
+    "is_remote": true
+   },
+   true
+  ],
+  [
+   "Python Backend Developer",
+   "Worldwide",
+   "Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. ",
+   {
+    "is_remote": true
+   },
+   true
+  ],
+  [
+   "Python Backend Developer",
+   "United States",
+   "Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. ",
+   {
+    "is_remote": true
+   },
+   false
+  ],
+  [
+   "Python Backend Developer",
+   "Anywhere in the US",
+   "Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. ",
+   {
+    "is_remote": true
+   },
+   false
+  ],
+  [
+   "Python Backend Developer",
+   "Worldwide",
+   "Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Candidates must be located in the United States. ",
+   {
+    "is_remote": true
+   },
+   false
+  ],
+  [
+   "Python Backend Developer",
+   "Remote",
+   "Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. You must overlap with EST business hours for daily standups. ",
+   {
+    "is_remote": true
+   },
+   true
+  ],
+  [
+   "Python Developer",
+   "Bengaluru, Karnataka, India",
+   "Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. Fully remote role. Build Python FastAPI REST APIs and integrate OpenAI models. Freshers welcome, 0-1 years. PostgreSQL, Git, Docker. Work with a friendly distributed team. ",
+   {},
+   false
+  ],
+  [
+   "Software Engineer",
+   "Hyderabad, Telangana, India",
+   "Software engineer: build backend services in Python or Java. Python and Java are both used. Freshers welcome, 0-1 years. REST APIs, SQL, Git, data structures and algorithms. Software engineer: build backend services in Python or Java. Python and Java are both used. Freshers welcome, 0-1 years. REST APIs, SQL, Git, data structures and algorithms. Software engineer: build backend services in Python or Java. Python and Java are both used. Freshers welcome, 0-1 years. REST APIs, SQL, Git, data structures and algorithms. ",
+   {},
+   true
+  ],
+  [
+   "Backend Developer",
+   "Hyderabad, Telangana, India",
+   "Build backend services with Node.js and Express.js. Freshers welcome, 0-1 years. MongoDB, REST APIs. Build backend services with Node.js and Express.js. Freshers welcome, 0-1 years. MongoDB, REST APIs. Build backend services with Node.js and Express.js. Freshers welcome, 0-1 years. MongoDB, REST APIs. Build backend services with Node.js and Express.js. Freshers welcome, 0-1 years. MongoDB, REST APIs. ",
+   {},
+   false
   ]
  ],
  "sample_job_title": "Python Developer",
