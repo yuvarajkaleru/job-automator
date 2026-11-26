@@ -1,10 +1,55 @@
-# Official company job feeds: full job descriptions, never blocked, one request per company per scan.
-# Format:  <platform> <slug>        platforms: greenhouse, lever, ashby
-# Find the slug in a company's careers link:
-#   job-boards.greenhouse.io/zenoti   or boards.greenhouse.io/zenoti  ->  greenhouse zenoti
-#   jobs.lever.co/acme                                                  ->  lever acme
-#   jobs.ashbyhq.com/acme                                               ->  ashby acme
-# Only Hyderabad openings are kept; all your normal fresher / experience filters still apply.
+# Company job sources for Yuvaraj's bot (Hyderabad). One per line. Lines starting with # are ignored.
+# Only jobs located in Hyderabad are kept, and all the normal fresher / Python / experience rules apply.
+# Company-site jobs are alerted when they are NEW to the bot (up to 14 days old), in a separate
+# 🏢 list, because company sites rarely show an accurate posting date.
+#
+# The scan summary says "company feeds 37/39 ... (failed: X, Y)". For a failed Workday company:
+# open its careers site, click any job, and copy the address up to the site name, e.g.
+#   https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite
+# then replace its line below. Or move it to the Firecrawl section.
 
-greenhouse zenoti        # Hyderabad HQ (salon & spa SaaS)
-greenhouse highradius    # Hyderabad HQ (fintech SaaS)
+# ---- Official job feeds: free, no key, full job descriptions -------------------------------------
+greenhouse zenoti
+greenhouse highradius
+smartrecruiters ServiceNow ServiceNow
+smartrecruiters BoschGroup Bosch
+amazon Amazon
+
+# ---- Workday career sites (public JSON, no key) - format: workday <site URL> <Company name> -------
+workday https://qualcomm.wd5.myworkdayjobs.com/External Qualcomm
+workday https://micron.wd1.myworkdayjobs.com/External Micron
+workday https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite NVIDIA
+workday https://intel.wd1.myworkdayjobs.com/External Intel
+workday https://salesforce.wd12.myworkdayjobs.com/External_Career_Site Salesforce
+workday https://novartis.wd3.myworkdayjobs.com/Novartis_Careers Novartis
+workday https://amgen.wd1.myworkdayjobs.com/Careers Amgen
+workday https://lilly.wd5.myworkdayjobs.com/LLY Eli Lilly
+workday https://cigna.wd5.myworkdayjobs.com/cignacareers Evernorth (Cigna)
+workday https://invesco.wd1.myworkdayjobs.com/IVZ Invesco
+workday https://chubb.wd1.myworkdayjobs.com/chubbcareers Chubb
+workday https://lbg.wd3.myworkdayjobs.com/LBG_Careers Lloyds Technology Centre
+workday https://warnerbros.wd5.myworkdayjobs.com/global Warner Bros. Discovery
+workday https://mcdonalds.wd5.myworkdayjobs.com/McDonaldsGlobalOffices McDonald's
+workday https://carrier.wd5.myworkdayjobs.com/jobs Carrier
+workday https://pega.wd3.myworkdayjobs.com/Pegasystems Pega
+workday https://ea.wd1.myworkdayjobs.com/EA_External Electronic Arts
+workday https://commvault.wd1.myworkdayjobs.com/Commvault Commvault
+
+# ---- Careers pages read with Firecrawl (needs FIRECRAWL_API_KEY; 4 pages/day in rotation) --------
+# format: firecrawl <job list URL> <Company> | <default city>
+firecrawl https://jobs.careers.microsoft.com/global/en/search?lc=Hyderabad%2C%20Telangana%2C%20India&exp=Students%20and%20graduates Microsoft | Hyderabad
+firecrawl https://www.google.com/about/careers/applications/jobs/results/?location=Hyderabad%2C%20India&target_level=EARLY Google | Hyderabad
+firecrawl https://www.accenture.com/in-en/careers/jobsearch?jk=python&ct=Hyderabad Accenture | Hyderabad
+firecrawl https://www2.deloitte.com/in/en/careers/students.html Deloitte | Hyderabad
+firecrawl https://career.infosys.com/joblist Infosys | Hyderabad
+firecrawl https://www.tcs.com/careers/india/fresher TCS | Hyderabad
+firecrawl https://careers.wipro.com/search/?q=python&locationsearch=Hyderabad Wipro | Hyderabad
+firecrawl https://careers.cognizant.com/global-en/jobs/?keyword=python&location=Hyderabad Cognizant | Hyderabad
+firecrawl https://www.capgemini.com/in-en/careers/join-capgemini/job-search/?search_term=python&location=Hyderabad Capgemini | Hyderabad
+firecrawl https://careers.techmahindra.com/ Tech Mahindra | Hyderabad
+firecrawl https://www.cyient.com/careers Cyient | Hyderabad
+firecrawl https://www.valuelabs.com/careers/ ValueLabs | Hyderabad
+firecrawl https://darwinbox.com/careers Darwinbox | Hyderabad
+firecrawl https://www.keka.com/careers Keka | Hyderabad
+firecrawl https://kore.ai/careers/ Kore.ai | Hyderabad
+firecrawl https://www.phenom.com/careers Phenom | Hyderabad

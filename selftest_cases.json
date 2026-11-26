@@ -1,0 +1,660 @@
+{
+ "_readme": "Offline test jobs for `python run_jobs.py selftest`: [title, location, description, extra fields, keep?]. {filler} = a normal job description for this person.",
+ "filler": " We build REST APIs with Python, FastAPI, Pydantic, SQLAlchemy and PostgreSQL. Git, Docker.  We build REST APIs with Python, FastAPI, Pydantic, SQLAlchemy and PostgreSQL. Git, Docker.  We build REST APIs with Python, FastAPI, Pydantic, SQLAlchemy and PostgreSQL. Git, Docker.  We build REST APIs with Python, FastAPI, Pydantic, SQLAlchemy and PostgreSQL. Git, Docker.  We build REST APIs with Python, FastAPI, Pydantic, SQLAlchemy and PostgreSQL. Git, Docker. ",
+ "cases": [
+  [
+   "Python Developer",
+   "Hyderabad, Telangana, India",
+   "Freshers welcome. 0-1 years.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Bengaluru, Karnataka, India",
+   "{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "India",
+   "{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "India",
+   "Freshers welcome. Location: Hyderabad (hybrid).{filler}",
+   {},
+   true
+  ],
+  [
+   "Software Engineer Fresher",
+   "Pan India",
+   "Freshers. Locations: Hyderabad, Pune, Chennai.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Experience: 2-4 years in backend.{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Minimum of two (2) years of professional experience.{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "3+ yrs hands-on experience with APIs.{filler}",
+   {},
+   false
+  ],
+  [
+   "Backend Engineer",
+   "Hyderabad",
+   "We need someone with 2 years of relevant experience.{filler}",
+   {},
+   false
+  ],
+  [
+   "Backend Engineer",
+   "Hyderabad",
+   "Experience required: 2 to 5 years{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "2+ years of experience preferred, but freshers with strong projects are welcome.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Required: 3+ years of experience. Preferred: 5 years of experience.{filler}",
+   {},
+   false
+  ],
+  [
+   "Senior Python Developer",
+   "Hyderabad",
+   "{filler}",
+   {},
+   false
+  ],
+  [
+   "Software Engineer II",
+   "Hyderabad",
+   "{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Intern",
+   "Gachibowli, Hyderabad",
+   "Final year students. 6 months internship. Stipend 15k.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Eligibility: 2024 & 2025 batch only.{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Open to 2026/2027 passouts.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Location: Pune, Maharashtra.{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Trainee",
+   "Hyderabad",
+   "Training fee of Rs 20000 refundable deposit.{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Short JD",
+   {},
+   false
+  ],
+  [
+   "Sales Executive",
+   "Hyderabad",
+   "{filler}",
+   {},
+   false
+  ],
+  [
+   "Tele Caller",
+   "Hyderabad",
+   "{filler}",
+   {
+    "site": "naukri"
+   },
+   false
+  ],
+  [
+   "Medical Coding Analyst",
+   "Hyderabad",
+   "{filler}",
+   {
+    "site": "naukri"
+   },
+   false
+  ],
+  [
+   "PHP/Laravel Engineer",
+   "Hyderabad",
+   "",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "1 year of experience preferred.{filler}",
+   {},
+   true
+  ],
+  [
+   "Backend Developer",
+   "Hyderabad",
+   "Experience: 0-2 years of experience in Python.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "0 to 2 yrs exp. Freshers can apply.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Fresher or 2-4 years experience{filler}",
+   {},
+   false
+  ],
+  [
+   "Java Developer",
+   "Hyderabad",
+   "Java Spring Boot microservices. 0-1 years experience. Java Spring Boot microservices. 0-1 years experience. Java Spring Boot microservices. 0-1 years experience. Java Spring Boot microservices. 0-1 years experience. Java Spring Boot microservices. 0-1 years experience. Java Spring Boot microservices. 0-1 years experience. Java Spring Boot microservices. 0-1 years experience. Java Spring Boot microservices. 0-1 years experience. ",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Company in business for 10+ years. Freshers apply.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer (stale)",
+   "Hyderabad",
+   "Freshers welcome.{filler}",
+   {
+    "posted_days_ago": 9
+   },
+   false
+  ],
+  [
+   "Python Developer Intern",
+   "Hyderabad",
+   "Apply now",
+   {},
+   true
+  ],
+  [
+   "Junior Python Developer",
+   "Hyderabad",
+   "",
+   {},
+   true
+  ],
+  [
+   "Python Specialist",
+   "Hyderabad",
+   "Freshers. Develop python apps. Python, python.{filler}",
+   {},
+   true
+  ],
+  [
+   "Associate - Python",
+   "Hyderabad",
+   "0-1 years.{filler}",
+   {},
+   true
+  ],
+  [
+   "Data Entry Operator",
+   "Hyderabad",
+   "",
+   {},
+   false
+  ],
+  [
+   "SDE 1",
+   "Hyderabad",
+   "Freshers / 0-1 years. Backend services in Python.{filler}",
+   {},
+   true
+  ],
+  [
+   "Software Development Engineer",
+   "Hyderabad",
+   "2026/2027 passouts. Python backend, REST APIs.{filler}",
+   {},
+   true
+  ],
+  [
+   "SDE-I (Backend)",
+   "Hyderabad",
+   "Entry level. Python, FastAPI.{filler}",
+   {},
+   true
+  ],
+  [
+   "SDE 2",
+   "Hyderabad",
+   "{filler}",
+   {},
+   false
+  ],
+  [
+   "Software Development Engineer III",
+   "Hyderabad",
+   "{filler}",
+   {},
+   false
+  ],
+  [
+   "SDE - Java",
+   "Hyderabad",
+   "Java, Spring Boot, microservices, 0-1 years. Java, Spring Boot, microservices, 0-1 years. Java, Spring Boot, microservices, 0-1 years. Java, Spring Boot, microservices, 0-1 years. Java, Spring Boot, microservices, 0-1 years. Java, Spring Boot, microservices, 0-1 years. Java, Spring Boot, microservices, 0-1 years. Java, Spring Boot, microservices, 0-1 years. Java, Spring Boot, microservices, 0-1 years. Java, Spring Boot, microservices, 0-1 years. ",
+   {},
+   false
+  ],
+  [
+   "Software Engineer",
+   "Hyderabad",
+   "Freshers welcome. Strong coding skills in any programming language (Java, C++ or Go), data structures and algorithms, problem solving. 0-1 years. Freshers welcome. Strong coding skills in any programming language (Java, C++ or Go), data structures and algorithms, problem solving. 0-1 years. Freshers welcome. Strong coding skills in any programming language (Java, C++ or Go), data structures and algorithms, problem solving. 0-1 years. Freshers welcome. Strong coding skills in any programming language (Java, C++ or Go), data structures and algorithms, problem solving. 0-1 years. ",
+   {},
+   true
+  ],
+  [
+   "Software Developer (naukri 0-2)",
+   "Hyderabad",
+   "Short snippet.",
+   {
+    "site": "naukri",
+    "experience_range": "0-2 Yrs",
+    "skills": "Python, FastAPI, SQL, REST API"
+   },
+   true
+  ],
+  [
+   "Software Developer (naukri 3-6)",
+   "Hyderabad",
+   "Short snippet.",
+   {
+    "site": "naukri",
+    "experience_range": "3-6 Yrs",
+    "skills": "Python, Django"
+   },
+   false
+  ],
+  [
+   "Software Developer (no range)",
+   "Hyderabad",
+   "Short snippet.",
+   {},
+   false
+  ],
+  [
+   "Software Engineer",
+   "Hyderabad",
+   "",
+   {
+    "job_level": "Entry level"
+   },
+   true
+  ],
+  [
+   "Software Engineer",
+   "Hyderabad",
+   "",
+   {},
+   false
+  ],
+  [
+   "Software Engineer",
+   "Hyderabad",
+   "",
+   {
+    "job_level": "Mid-Senior level"
+   },
+   false
+  ],
+  [
+   "Office Assistant",
+   "Hyderabad",
+   "Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. Freshers welcome. MS Office. ",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "3+ years experience managing Python language projects.{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Madhapur, Hyderabad",
+   "Qualifications: 2–3 yrs exp in Django/FastAPI.{filler}",
+   {},
+   false
+  ],
+  [
+   "Associate Software Engineer",
+   "Hyderabad, TG, IN",
+   "Graduates of 2025-2027 batch eligible. Python.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad, Telangana, India",
+   "Freshers welcome.{filler}",
+   {
+    "is_remote": true
+   },
+   false
+  ],
+  [
+   "Software Development Engineer",
+   "Serilingampalli, Telangana, India",
+   "Freshers. 0-1 years.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderābād, Telangana",
+   "Freshers welcome.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyd",
+   "Freshers welcome.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Warangal, Telangana",
+   "Freshers welcome.{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Experience: 0‑2 years. Freshers.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Required: 2−4 years of experience{filler}",
+   {},
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Required: 0\\-2 years of experience{filler}",
+   {},
+   true
+  ],
+  [
+   "Full Stack Developer",
+   "Hyderabad",
+   "Freshers welcome, 0-1 years.{filler}",
+   {
+    "job_level": "Mid-Senior level"
+   },
+   true
+  ],
+  [
+   "Full Stack Developer",
+   "Hyderabad",
+   "Strong ownership expected.{filler}",
+   {
+    "job_level": "Mid-Senior level"
+   },
+   false
+  ],
+  [
+   "Software Engineer",
+   "Hyderabad",
+   "{filler}",
+   {
+    "job_level": "Director"
+   },
+   false
+  ],
+  [
+   "Software Engineer Intern",
+   "Hyderabad",
+   "",
+   {},
+   true
+  ],
+  [
+   "Intern - Process Excellence",
+   "Hyderabad",
+   "",
+   {},
+   false
+  ],
+  [
+   "Associate Software Engineer - Python",
+   "Hyderabad",
+   "Freshers.{filler}",
+   {
+    "site": "zenoti careers",
+    "posted_days_ago": 1
+   },
+   true
+  ],
+  [
+   "Associate Software Engineer - Python",
+   "Hyderabad",
+   "Freshers.{filler}",
+   {
+    "site": "nvidia careers",
+    "posted_days_ago": 10
+   },
+   true
+  ],
+  [
+   "Associate Software Engineer - Python",
+   "Hyderabad",
+   "Freshers.{filler}",
+   {
+    "site": "nvidia careers",
+    "posted_days_ago": 20
+   },
+   false
+  ],
+  [
+   "Associate Software Engineer - Python",
+   "Hyderabad",
+   "Freshers.{filler}",
+   {
+    "posted_days_ago": 3
+   },
+   false
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Unpaid internship for 3 months.{filler}",
+   {},
+   true
+  ]
+ ],
+ "sample_job_title": "Python Developer",
+ "sample_resume": {
+  "resume": {
+   "headline": "Python Backend Developer (FastAPI) | B.Tech CSBS 2027",
+   "summary": "Final-year B.Tech CSBS student building FastAPI backends with JWT auth, SQLAlchemy and PostgreSQL; Python Developer Intern at Infosys Springboard.",
+   "skills": [
+    {
+     "category": "Languages",
+     "items": [
+      "Python",
+      "JavaScript",
+      "SQL"
+     ]
+    },
+    {
+     "category": "Backend & APIs",
+     "items": [
+      "FastAPI",
+      "REST APIs",
+      "Pydantic",
+      "SQLAlchemy",
+      "Kubernetes"
+     ]
+    },
+    {
+     "category": "Databases",
+     "items": [
+      "PostgreSQL",
+      "MySQL",
+      "SQLite"
+     ]
+    },
+    {
+     "category": "Tools",
+     "items": [
+      "Git",
+      "GitHub",
+      "Docker",
+      "AWS",
+      "Linux"
+     ]
+    }
+   ],
+   "experience": [
+    {
+     "title": "Python Developer Intern",
+     "org": "Infosys Springboard",
+     "dates": "Nov 2025 - Jan 2026",
+     "location": "Remote",
+     "bullets": [
+      "Built a Python pipeline with Pandas and NumPy that cleans and merges 2,881 records across 30 days of health data.",
+      "Built a Python pipeline with Pandas and NumPy that cleans and merges 2,881 records across 30 days of health data.",
+      "Built a Python pipeline with Pandas and NumPy that cleans and merges 2,881 records across 30 days of health data."
+     ]
+    }
+   ],
+   "projects": [
+    {
+     "name": "Customer Support Ticket Management System",
+     "tech": "FastAPI, SQLAlchemy, SQLite, JWT",
+     "date": "Nov 2026",
+     "link": "https://github.com/yuvarajkaleru/support-ticket-api",
+     "bullets": [
+      "Built a FastAPI REST backend with 12 endpoints, JWT auth and role-based access for 3 roles.",
+      "Built a FastAPI REST backend with 12 endpoints, JWT auth and role-based access for 3 roles.",
+      "Built a FastAPI REST backend with 12 endpoints, JWT auth and role-based access for 3 roles."
+     ]
+    },
+    {
+     "name": "GitHub Project Reviewer",
+     "tech": "FastAPI, Pydantic, React, Docker",
+     "date": "Dec 2025",
+     "link": "",
+     "bullets": [
+      "Built a FastAPI service that scores repositories 0-100 with a rule-based review pipeline.",
+      "Built a FastAPI service that scores repositories 0-100 with a rule-based review pipeline."
+     ]
+    },
+    {
+     "name": "Patient Records REST API",
+     "tech": "FastAPI, Pydantic v2",
+     "date": "Oct 2026",
+     "link": "",
+     "bullets": [
+      "Built CRUD endpoints with Pydantic v2 validation and computed fields.",
+      "Built CRUD endpoints with Pydantic v2 validation and computed fields."
+     ]
+    }
+   ],
+   "education": [
+    {
+     "degree": "B.Tech, Computer Science & Business Systems",
+     "school": "GITAM University, Bengaluru",
+     "dates": "2023 - 2027",
+     "details": "CGPA 7.36/10"
+    },
+    {
+     "degree": "Intermediate (MPC)",
+     "school": "Narayana Junior College, Hyderabad",
+     "dates": "2023",
+     "details": "70.01%"
+    }
+   ],
+   "certifications": [
+    "Infosys Springboard Internship 6.0 completion (Mar 2026)",
+    "Front-End Web Development - E-Cell, IIT Roorkee (2024)"
+   ],
+   "achievements": [
+    "Inclusion Officer (Core Team) - GITAM GitHub Club (2024-2025)"
+   ]
+  },
+  "cover_letter": {
+   "greeting": "Dear Hiring Team at Acme,",
+   "paragraphs": [
+    "Para one.",
+    "Para two & <test>."
+   ],
+   "closing": "Sincerely,"
+  }
+ }
+}

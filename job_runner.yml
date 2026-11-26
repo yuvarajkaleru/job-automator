@@ -1,0 +1,104 @@
+name: Hyderabad Fresher Job Bot
+
+# ------------------------------------------------------------------------------------------
+# WHEN IT RUNS (IST)
+#   Job scans : 8 AM (overnight digest), 11 AM, 2 PM, 5 PM, 8 PM, 11 PM  + anytime you send /scan
+#   Taps      : Apply / Skip / JD check / commands are handled within ~1-2 min of tapping
+#
+# PRIMARY trigger = the Cloudflare Worker relay (cloudflare-worker.js). Every minute it starts the
+#   scheduled scans on time, and starts an "approvals" run only when you tapped or typed something,
+#   so idle time costs no GitHub minutes.
+# BACKUP trigger  = the GitHub cron below, 20 min after each slot. It does nothing if a scan already
+#   ran, and never sends anything during quiet hours (11:30 PM - 7:30 AM).
+# ------------------------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'scrape = find new jobs, approvals = only process Telegram taps'
+        type: choice
+        options: [scrape, approvals]
+        default: scrape
+  schedule:
+    # UTC = IST - 5:30  ->  8:20, 11:20, 14:20, 17:20, 20:20, 23:20 IST
+    - cron: '50 2,5,8,11,14,17 * * *'
+
+# One run at a time, so runs never fight over jobs.db or Telegram updates.
+concurrency:
+  group: job-bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore job database
+        uses: actions/cache/restore@v4
+        with:
+          path: jobs.db
+          key: jobs-db-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            jobs-db-
+
+      # Decides scrape / approvals / skip using only built-in Python, BEFORE installing
+      # anything, so idle runs finish in ~15 seconds and cost 1 minute.
+      - name: Plan
+        id: plan
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TRIGGER_EVENT: ${{ github.event_name }}
+        run: python3 run_jobs.py plan "${{ inputs.mode || 'scrape' }}"
+
+      - name: Set up Python
+        if: steps.plan.outputs.action != 'skip'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Set up Node
+        if: steps.plan.outputs.action != 'skip'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        if: steps.plan.outputs.action != 'skip'
+        run: |
+          pip install -r requirements.txt
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Run bot (${{ steps.plan.outputs.action }})
+        if: steps.plan.outputs.action != 'skip'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RESUME_EMAIL: ${{ secrets.RESUME_EMAIL }}
+          RESUME_PHONE: ${{ secrets.RESUME_PHONE }}
+          # Optional free API keys (the bot simply skips a source whose key is missing):
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}   # missing job descriptions + company careers pages
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}               # Google Jobs (LinkedIn/Naukri postings WITH descriptions)
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}           # Adzuna India job search API
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+          # Tuning (see CONFIG at the top of run_jobs.py):
+          LISTEN_SECONDS: '120'        # stay online 2 min after alerts for instant Apply
+          HOURS_OLD: '48'              # every scan searches jobs posted in the last 48 hours
+          MAX_AGE_DAYS: '2'            # drop anything older (boards give dates, so 2 days ~ 48h)
+          MAX_RECENT: '10'             # list 1: 🔥 very recent (posted today)
+          MAX_EARLIER: '8'             # list 2: 📅 last 48 hours (yesterday / day before)
+          MAX_RECENT_OVERNIGHT: '15'   # the 8 AM digest can send more
+          MAX_EARLIER_OVERNIGHT: '12'
+        run: python run_jobs.py ${{ steps.plan.outputs.action }}
+
+      - name: Save job database
+        if: always() && steps.plan.outputs.action != 'skip'
+        uses: actions/cache/save@v4
+        with:
+          path: jobs.db
+          key: jobs-db-${{ github.run_id }}-${{ github.run_attempt }}

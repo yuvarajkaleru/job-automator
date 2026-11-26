@@ -1,0 +1,456 @@
+{
+  "_readme": "Everything that is specific to ONE person lives here. To make a bot for someone else, copy the whole folder and change only this file, master_resume.md and selftest_cases.json.",
+  "name": "Kaleru Yuvaraj",
+  "timezone": "Asia/Kolkata",
+  "timezone_label": "IST",
+  "bot_tag": "yuvaraj-job-alert-bot",
+  "grad_year": 2027,
+  "candidate_summary": "FRESHER: final-year B.Tech (Computer Science & Business Systems) student at GITAM, graduating 2027, zero years of full-time experience. One internship (Python Developer Intern, Infosys Springboard, Nov 2025 - Jan 2026). Skills: Python, FastAPI, Pydantic, SQLAlchemy, PostgreSQL/MySQL/SQLite, JWT/RBAC, REST APIs, HTML/CSS/JavaScript, Git, Docker/AWS basics, Pandas.",
+  "wants": "Python / FastAPI backend, Python full-stack, or fresher SDE / software engineer jobs and internships (6-month internships in 2027 are welcome) located in HYDERABAD only - on-site or hybrid in Hyderabad; fully remote or any other city is NOT wanted.",
+  "experience_min_years": 0,
+  "experience_max_years": 1,
+  "reject_fresher_roles": false,
+  "reject_remote": true,
+  "soft_preferred_years": true,
+  "min_score": 30,
+  "company_feed_max_age_days": 14,
+  "locations": [
+    {
+      "name": "Hyderabad",
+      "search": "Hyderabad, Telangana, India",
+      "country_indeed": "India",
+      "google": "in Hyderabad, India",
+      "sites": [
+        "linkedin",
+        "indeed",
+        "naukri",
+        "google"
+      ],
+      "remote_search": false,
+      "keywords": [
+        "hyderabad",
+        "secunderabad",
+        "hitec city",
+        "hi-tech city",
+        "hitech city",
+        "gachibowli",
+        "madhapur",
+        "kondapur",
+        "kukatpally",
+        "financial district",
+        "nanakramguda",
+        "manikonda",
+        "kokapet",
+        "raidurg",
+        "begumpet",
+        "ameerpet",
+        "banjara hills",
+        "jubilee hills",
+        "uppal",
+        "shamshabad",
+        "miyapur",
+        "serilingampally",
+        "serilingampalli",
+        "seri lingampally",
+        "lingampally",
+        "lingampalli",
+        "narsingi",
+        "pocharam",
+        "cyberabad",
+        "rangareddy",
+        "ranga reddy",
+        "medchal",
+        "hafeezpet",
+        "chandanagar",
+        "bachupally",
+        "kompally",
+        "nizampet",
+        "shamirpet",
+        "mindspace",
+        "puppalaguda",
+        "khajaguda",
+        "tellapur",
+        "gopanpally",
+        "hitec",
+        "hitech",
+        "attapur",
+        "knowledge city",
+        "waverock",
+        "nanakramguda"
+      ],
+      "short_codes": [
+        "hyd"
+      ]
+    }
+  ],
+  "remote_countries": [],
+  "search_terms": [
+    "Python Developer Fresher",
+    "FastAPI Developer",
+    "SDE 1",
+    "Python Backend Developer",
+    "Software Engineer Fresher",
+    "Python Intern",
+    "Software Development Engineer Intern",
+    "Backend Developer Intern",
+    "Junior Python Developer",
+    "Python Full Stack Developer",
+    "Associate Software Engineer",
+    "Graduate Engineer Trainee",
+    "Software Engineer Trainee",
+    "Django Developer Fresher",
+    "Backend Engineer Fresher",
+    "Software Engineer Intern 2027",
+    "Programmer Analyst Trainee",
+    "API Developer Python",
+    "Entry Level Software Engineer",
+    "Python Developer 0-1 years"
+  ],
+  "linkedin_max_terms": 6,
+  "linkedin_rotate": true,
+  "linkedin_always": 2,
+  "results_per_query": {
+    "linkedin": 25,
+    "default": 40
+  },
+  "serpapi": {
+    "enabled": true,
+    "per_scan": 1,
+    "monthly_budget": 240,
+    "location": "Hyderabad, Telangana, India",
+    "terms": [
+      "Python developer fresher",
+      "FastAPI developer",
+      "software engineer fresher",
+      "Python intern",
+      "SDE 1 fresher",
+      "backend developer fresher",
+      "associate software engineer",
+      "software engineer intern"
+    ]
+  },
+  "adzuna": {
+    "enabled": true,
+    "per_scan": 4,
+    "monthly_budget": 900,
+    "country": "in",
+    "where": "Hyderabad",
+    "max_days_old": 3,
+    "terms": [
+      "python developer",
+      "fastapi",
+      "software engineer fresher",
+      "python intern",
+      "backend developer",
+      "graduate engineer trainee",
+      "associate software engineer",
+      "software developer trainee"
+    ]
+  },
+  "workday_search": [
+    "software",
+    "python",
+    "intern",
+    "graduate"
+  ],
+  "amazon_search": [
+    "software development engineer",
+    "intern",
+    "python"
+  ],
+  "title_must_match": "python|fastapi|django|flask|backend|back[- ]end|full[- ]?stack|software|developer|engineer|\\bsde\\b|programmer|coder|trainee|intern|apprentice|graduate|associate|technolog|member of technical staff|\\bmts\\b|\\bget\\b|api|web",
+  "title_reject": "sales|marketing|tele ?caller|\\bbpo\\b|voice|customer (support|service)|call cent|\\bhr\\b|recruit|accountant|teacher|tutor|faculty|trainer|content writer|business development|counsel+or|data entry|field (executive|engineer)|medical|nurse|pharma|clinical|mechanical|civil|electrical|electronics|\\bvlsi\\b|embedded|firmware|php|laravel|\\.net\\b|dotnet|\\bc#|java developer|java engineer|spring boot|salesforce|guidewire|\\bsap\\b|mainframe|cobol|\\bios\\b|android|flutter|react native|swift|kotlin|unity|game developer|\\bqa\\b|tester|testing|test engineer|selenium|playwright|manual test|network engineer|system administrator|desktop support|technical support|service desk",
+  "title_too_senior": "\\b(senior|sr\\.?|lead|principal|manager|architect|staff|head|director|vp|vice president|chief|consultant ii|expert|specialist ii)\\b|\\b(sde|swe|engineer|developer|analyst|programmer)\\s*[-–]?\\s*(ii|iii|iv|2|3|4)\\b|\\bl[3-9]\\b|\\b(mid|mid-level|experienced)\\b",
+  "title_too_junior": "",
+  "soft_level_pattern": "senior",
+  "fresher_signal": "\\bfreshers?\\b|entry[\\s-]level|0\\s*-\\s*1\\s*years?|0\\s*-\\s*2\\s*years?|no experience|recent graduates?|final[\\s-]year|pre[\\s-]final|campus|\\b0\\s*years?\\b|graduate (engineer )?trainee|\\b202[6-7]\\b",
+  "no_fresher_pattern": "experienced (candidates?|professionals?) only|not for freshers|freshers? (need|should) not apply|no freshers",
+  "short_jd_ok_titles": [
+    "(python|fastapi|django|flask|backend|back[- ]end|full[- ]?stack).*(intern|trainee|fresher|graduate|junior|\\bjr\\b|entry|associate)|(intern|trainee|fresher|graduate|junior|\\bjr\\b|entry|associate).*(python|fastapi|django|flask|backend|back[- ]end|full[- ]?stack)",
+    "(\\bintern|trainee|apprentice|graduate engineer).*(software|developer|engineer|\\bsde\\b|programmer|backend|full)|(software|developer|engineer|\\bsde\\b|programmer|backend|full).*(\\bintern|trainee|apprentice)"
+  ],
+  "short_jd_ok_levels": "entry level|internship",
+  "title_satisfies_must": "python|fastapi|django|flask",
+  "jd_must_mention_any": [
+    "python",
+    "fastapi",
+    "django",
+    "flask",
+    "any programming language",
+    "any language",
+    "programming language such as",
+    "languages like",
+    "languages such as",
+    "object oriented programming",
+    "object-oriented programming",
+    "oops",
+    "data structures and algorithms",
+    "data structures & algorithms",
+    "dsa"
+  ],
+  "title_rescue": {
+    "word": "python",
+    "min_count": 3,
+    "pattern": "develop|build|api|backend|code"
+  },
+  "title_bonus": [
+    {
+      "pattern": "fastapi",
+      "points": 10
+    },
+    {
+      "pattern": "python|django|flask",
+      "points": 6
+    },
+    {
+      "pattern": "\\bsde\\b|software (development )?engineer|software developer|backend (developer|engineer)",
+      "points": 5
+    }
+  ],
+  "role_types": [
+    {
+      "label": "Internship",
+      "pattern": "\\bintern(ship)?\\b",
+      "title_only": true
+    }
+  ],
+  "default_role_type": "Fresher Full-Time",
+  "jd_flags": [
+    {
+      "pattern": "\\bfreshers?\\b|entry[\\s-]level|0\\s*-\\s*1\\s*years?|0\\s*-\\s*2\\s*years?|no experience|recent graduates?|final[\\s-]year|campus|graduate (engineer )?trainee",
+      "note": "🌱 Fresher-friendly",
+      "points": 8
+    },
+    {
+      "pattern": "any programming language|any (oop|object[- ]oriented) language|language[- ]agnostic|any language of your choice",
+      "note": "🧠 Any programming language accepted",
+      "points": 10
+    },
+    {
+      "pattern": "\\bunpaid\\b|no stipend",
+      "note": "⚠️ Unpaid",
+      "points": -8
+    },
+    {
+      "pattern": "pre[- ]placement offer|\\bppo\\b",
+      "note": "🎯 PPO possible",
+      "points": 3
+    },
+    {
+      "pattern": "6[- ]months? internship|internship (duration|period)[^.]{0,20}6 months|six[- ]month",
+      "note": "📆 6-month internship",
+      "points": 0
+    },
+    {
+      "pattern": "visa sponsorship (is )?not|no (visa )?sponsorship",
+      "note": "",
+      "points": 0
+    }
+  ],
+  "screen_notes": [
+    "The candidate is a FRESHER: reject jobs that are clearly for experienced people or say freshers cannot apply.",
+    "Fresher SDE / software engineer roles are welcome even if Python is not the only language, as long as Python is mentioned or any language / OOP / DSA is acceptable. Reject roles that need a specific other stack only (Java-only, .NET, PHP, Salesforce, SAP, mobile, QA/testing).",
+    "Internships are welcome (he graduates in 2027, so 6-month internships in 2027 are fine).",
+    "If the job wants '2+ years' only as 'preferred' / 'nice to have' and clearly also considers freshers, accept it and say so in reason.",
+    "Work location must be Hyderabad (on-site or hybrid). Reject fully remote jobs and other cities."
+  ],
+  "tailor_notes": [
+    "- The candidate is a FRESHER (final-year student, graduating 2027). Never claim full-time experience; the Infosys Springboard role is an internship.",
+    "- Summary: fresher framing, max 45 words. Skills: 4-5 categories.",
+    "- Projects matter most: the 3 most relevant (prefer Priority: high), 2-3 bullets each, with the repo / live link from the master resume.",
+    "- Cover letter: fresher tone; mention availability - internships now, full-time from 2027 (pick what fits the job type)."
+  ],
+  "skill_weights": {
+    "fastapi": 12,
+    "python": 10,
+    "pydantic": 6,
+    "sqlalchemy": 6,
+    "rest api": 6,
+    "restful": 4,
+    "postgresql": 5,
+    "postgres": 3,
+    "mysql": 4,
+    "sqlite": 2,
+    "sql": 3,
+    "jwt": 4,
+    "oauth": 2,
+    "rbac": 2,
+    "html": 3,
+    "css": 3,
+    "javascript": 3,
+    "git": 2,
+    "github": 1,
+    "docker": 3,
+    "aws": 2,
+    "linux": 2,
+    "pandas": 2,
+    "numpy": 1,
+    "streamlit": 1,
+    "uvicorn": 2,
+    "api": 2,
+    "backend": 3,
+    "full stack": 3,
+    "fullstack": 3,
+    "orm": 2,
+    "microservices": 1,
+    "data structures": 2,
+    "oop": 2
+  },
+  "skill_aliases": {
+    "rest api": "rest(ful)?\\s*api",
+    "javascript": "javascript|\\bjs\\b",
+    "postgresql": "postgre\\s*sql",
+    "full stack": "full[\\s-]?stack",
+    "html": "html5?",
+    "css": "css3?",
+    "git": "\\bgit\\b",
+    "oop": "\\boops?\\b|object[- ]oriented",
+    "data structures": "data structures|\\bdsa\\b",
+    "api": "\\bapis?\\b"
+  },
+  "gap_skills": [
+    "django",
+    "flask",
+    "react",
+    "angular",
+    "node.js",
+    "nodejs",
+    "java",
+    "spring",
+    ".net",
+    "c#",
+    "golang",
+    "kubernetes",
+    "kafka",
+    "spark",
+    "airflow",
+    "terraform",
+    "redis",
+    "mongodb",
+    "typescript",
+    "graphql",
+    "azure",
+    "gcp",
+    "ci/cd"
+  ],
+  "skill_display": {
+    "fastapi": "FastAPI",
+    "python": "Python",
+    "pydantic": "Pydantic",
+    "sqlalchemy": "SQLAlchemy",
+    "rest api": "REST APIs",
+    "restful": "RESTful APIs",
+    "postgresql": "PostgreSQL",
+    "postgres": "PostgreSQL",
+    "mysql": "MySQL",
+    "sqlite": "SQLite",
+    "sql": "SQL",
+    "jwt": "JWT",
+    "oauth": "OAuth2",
+    "rbac": "RBAC",
+    "html": "HTML5",
+    "css": "CSS3",
+    "javascript": "JavaScript",
+    "git": "Git",
+    "github": "GitHub",
+    "docker": "Docker",
+    "aws": "AWS",
+    "linux": "Linux",
+    "pandas": "Pandas",
+    "numpy": "NumPy",
+    "streamlit": "Streamlit",
+    "uvicorn": "Uvicorn",
+    "orm": "ORM",
+    "data structures": "Data Structures & Algorithms",
+    "oop": "Object-Oriented Programming"
+  },
+  "gap_display": {
+    "django": "Django",
+    "flask": "Flask",
+    "react": "React",
+    "angular": "Angular",
+    "node.js": "Node.js",
+    "nodejs": "Node.js",
+    "java": "Java",
+    "spring": "Spring",
+    ".net": ".NET",
+    "c#": "C#",
+    "golang": "Go",
+    "kubernetes": "Kubernetes",
+    "kafka": "Kafka",
+    "spark": "Spark",
+    "airflow": "Airflow",
+    "terraform": "Terraform",
+    "redis": "Redis",
+    "mongodb": "MongoDB",
+    "typescript": "TypeScript",
+    "graphql": "GraphQL",
+    "azure": "Azure",
+    "gcp": "GCP",
+    "ci/cd": "CI/CD"
+  },
+  "skill_home": {
+    "backend": [
+      "fastapi",
+      "pydantic",
+      "sqlalchemy",
+      "rest api",
+      "restful",
+      "jwt",
+      "oauth",
+      "rbac",
+      "uvicorn",
+      "orm"
+    ],
+    "data": [
+      "postgresql",
+      "postgres",
+      "mysql",
+      "sqlite",
+      "sql"
+    ],
+    "front": [
+      "html",
+      "css",
+      "javascript"
+    ],
+    "tool": [
+      "git",
+      "github",
+      "docker",
+      "aws",
+      "linux"
+    ],
+    "ai": [
+      "pandas",
+      "numpy",
+      "streamlit"
+    ],
+    "language": [
+      "data structures",
+      "oop"
+    ]
+  },
+  "profile_text": "Python backend developer FastAPI Pydantic REST API SQLAlchemy ORM PostgreSQL MySQL SQLite JWT OAuth2 bcrypt role based access control RBAC HTML CSS JavaScript frontend full stack Git GitHub Docker AWS Linux Pandas NumPy Streamlit Prophet data pipeline uvicorn CRUD API design pagination fresher intern trainee graduate B.Tech computer science 2027 software engineer SDE data structures algorithms OOP",
+  "skills_heading": "TECHNICAL SKILLS",
+  "show_github": true,
+  "headline_example": "Python Backend Developer (FastAPI) | B.Tech CSBS 2027",
+  "schedule": {
+    "slots_ist": [
+      8,
+      11,
+      14,
+      17,
+      20,
+      23
+    ],
+    "quiet_start": "23:30",
+    "quiet_end": "07:30",
+    "backup_cron_utc": "50 2,5,8,11,14,17 * * *"
+  },
+  "firecrawl": {
+    "careers_pages_per_day": 4,
+    "jd_fill_per_scan": 6,
+    "monthly_budget": 450
+  }
+}

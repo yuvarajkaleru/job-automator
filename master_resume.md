@@ -22,7 +22,7 @@ HOW THIS FILE IS USED
 - Work location: Hyderabad only (on-site or hybrid)
 
 ## EDUCATION
-- B.Tech, Computer Science & Business Systems (CSBS) — GITAM University, Hyderabad | 2023 – 2027 (expected) | CGPA: 7.45/10
+- B.Tech, Computer Science & Business Systems (CSBS) — GITAM University, Bengaluru | 2023 – 2027 (expected) | CGPA: 7.36/10
 - Intermediate (Class XII, MPC) — Narayana Junior College, Hyderabad | 2023 | 70.01%
 - SSC (Class X) — Joshi's Vidhyaniketan School, Uppal, Telangana | 2021 | 95%
 
@@ -38,7 +38,7 @@ HOW THIS FILE IS USED
 - Core concepts: Data Structures & Algorithms, Object-Oriented Programming
 
 ## EXPERIENCE
-### AI/ML Intern (Python) — Infosys Springboard, Internship 6.0 (FitPulse Program) | Nov 2025 – Jan 2026 | Remote
+### Python Developer Intern — Infosys Springboard, Internship 6.0 (FitPulse AI/ML Program) | Nov 2025 – Jan 2026 | Remote
 Priority: high
 Repo: https://github.com/yuvarajkaleru/Fitpulse-Health-Detection
 Certificate: Infosys Springboard Certificate of Completion — "FitPulse: Health Anomaly Detection from Fitness Devices" (4 Nov 2025 – 10 Jan 2026)
