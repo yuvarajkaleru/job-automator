@@ -1,12 +1,11 @@
 # Company job sources for Yuvaraj's bot (Hyderabad). One per line. Lines starting with # are ignored.
-# Only jobs located in Hyderabad are kept, and all the normal fresher / Python / experience rules apply.
-# Company-site jobs are alerted when they are NEW to the bot (up to 14 days old), in a separate
-# 🏢 list, because company sites rarely show an accurate posting date.
+# Only jobs located in Hyderabad are kept, and all the normal fresher / Python / experience / 48-hour
+# rules apply. Company jobs land in the same two lists (🔥 very recent / 📅 last 48 hours).
 #
-# The scan summary says "company feeds 37/39 ... (failed: X, Y)". For a failed Workday company:
+# The scan summary says "careers 21/23 company feeds ... (failed: X, Y)". For a failed Workday company:
 # open its careers site, click any job, and copy the address up to the site name, e.g.
 #   https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite
-# then replace its line below. Or move it to the Firecrawl section.
+# then replace its line below - or move the company to the Firecrawl section.
 
 # ---- Official job feeds: free, no key, full job descriptions -------------------------------------
 greenhouse zenoti
@@ -35,7 +34,10 @@ workday https://pega.wd3.myworkdayjobs.com/Pegasystems Pega
 workday https://ea.wd1.myworkdayjobs.com/EA_External Electronic Arts
 workday https://commvault.wd1.myworkdayjobs.com/Commvault Commvault
 
-# ---- Careers pages read with Firecrawl (needs FIRECRAWL_API_KEY; 4 pages/day in rotation) --------
+# ---- Careers pages read with Firecrawl (needs FIRECRAWL_API_KEY; 8 pages a day in rotation) -------
+# The first visit to a page only records the jobs already listed (their age is unknown); after that,
+# every job that NEWLY appears on the page is opened and checked. "no job links on X" in the scan
+# summary means that page's URL should be replaced with the company's job-search results page.
 # format: firecrawl <job list URL> <Company> | <default city>
 firecrawl https://jobs.careers.microsoft.com/global/en/search?lc=Hyderabad%2C%20Telangana%2C%20India&exp=Students%20and%20graduates Microsoft | Hyderabad
 firecrawl https://www.google.com/about/careers/applications/jobs/results/?location=Hyderabad%2C%20India&target_level=EARLY Google | Hyderabad

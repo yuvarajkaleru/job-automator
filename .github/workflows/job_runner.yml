@@ -32,7 +32,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -81,6 +81,9 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           RESUME_EMAIL: ${{ secrets.RESUME_EMAIL }}
           RESUME_PHONE: ${{ secrets.RESUME_PHONE }}
+          # Optional free API keys (the bot simply skips a source whose key is missing):
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}   # missing job descriptions + company careers pages
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}               # Google Jobs (LinkedIn/Naukri postings WITH descriptions)
           # Tuning (see CONFIG at the top of run_jobs.py):
           LISTEN_SECONDS: '120'        # stay online 2 min after alerts for instant Apply
           HOURS_OLD: '48'              # every scan searches jobs posted in the last 48 hours

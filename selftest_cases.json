@@ -508,7 +508,7 @@
     "site": "nvidia careers",
     "posted_days_ago": 10
    },
-   true
+   false
   ],
   [
    "Associate Software Engineer - Python",
@@ -533,6 +533,13 @@
    "Python Developer",
    "Hyderabad",
    "Unpaid internship for 3 months.{filler}",
+   {},
+   true
+  ],
+  [
+   "Python Developer",
+   "Hyderabad",
+   "Freshers welcome. Send your resume to hr@acmetech.in.{filler}",
    {},
    true
   ]

@@ -25,7 +25,6 @@ Secrets (environment variables)
   FIRECRAWL_API_KEY (optional: careers pages + missing job descriptions)
   REED_API_KEY      (optional, UK: official Reed.co.uk job search API)
   SERPAPI_KEY       (optional: Google Jobs via SerpApi, free 250 searches/month)
-  ADZUNA_APP_ID / ADZUNA_APP_KEY (optional: Adzuna job search API, free)
 """
 
 from __future__ import annotations
@@ -61,8 +60,7 @@ from pathlib import Path
 
 # Secrets pasted into GitHub often carry a hidden newline or space at the end: strip them all here.
 for _k in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "CLAUDE_CODE_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
-           "FIRECRAWL_API_KEY", "REED_API_KEY", "SERPAPI_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY",
-           "RESUME_EMAIL", "RESUME_PHONE"):
+           "FIRECRAWL_API_KEY", "REED_API_KEY", "SERPAPI_KEY", "RESUME_EMAIL", "RESUME_PHONE"):
     if os.getenv(_k) is not None:
         os.environ[_k] = os.environ[_k].strip()
 
@@ -122,8 +120,9 @@ REJECT_FRESHER_ROLES = bool(PROFILE.get("reject_fresher_roles", False))
 # --- time window & freshness -------------------------------------------------------------
 HOURS_OLD = env("HOURS_OLD", 48)                   # every scan asks the sites for jobs from the last 48h
 MAX_AGE_DAYS = env("MAX_AGE_DAYS", 2)              # 48h rule: today, yesterday, day before (boards give dates only)
-# Company job sites often show no (or a refreshed) posting date, so their jobs are alerted when they are NEW TO
-# THE BOT, up to this many days old (profile.json -> company_feed_max_age_days).
+# Company job feeds follow the same 48h rule by default (profile.json -> company_feed_max_age_days).
+# Careers pages read with Firecrawl usually show no date: only jobs that APPEARED since the page's
+# previous visit are alerted (see scrape_careers_pages), and they land in the 48-hour list.
 CAREERS_MAX_AGE_DAYS = env("CAREERS_MAX_AGE_DAYS", int(PROFILE.get("company_feed_max_age_days", 2)))
 OVERNIGHT_MIN_GAP_HOURS = env("OVERNIGHT_MIN_GAP_HOURS", 6)
 QUIET_START = env("QUIET_START", PROFILE["schedule"].get("quiet_start", "23:30"))  # IST: backup runs never alert at night
@@ -142,7 +141,6 @@ MAX_RECENT = env("MAX_RECENT", 10)
 MAX_EARLIER = env("MAX_EARLIER", 8)
 MAX_RECENT_OVERNIGHT = env("MAX_RECENT_OVERNIGHT", 15)   # the morning digest can send more
 MAX_EARLIER_OVERNIGHT = env("MAX_EARLIER_OVERNIGHT", 12)
-MAX_COMPANY = env("MAX_COMPANY", 8)                      # 🏢 third list: new on company career sites (older than 48h)
 
 USE_AI_SCREEN = env("USE_AI_SCREEN", True)
 AI_SCREEN_BATCH = env("AI_SCREEN_BATCH", 6)
@@ -327,7 +325,7 @@ JOB_COLUMNS = {
     "location": "TEXT", "url": "TEXT", "site": "TEXT", "description": "TEXT",
     "score": "REAL", "role_type": "TEXT", "matched_skills": "TEXT", "notes": "TEXT",
     "ai_json": "TEXT", "status": "TEXT", "reason": "TEXT", "posted_on": "TEXT", "filter_version": "INTEGER", "created_at": "TEXT",
-    "updated_at": "TEXT",
+    "updated_at": "TEXT", "followed_up_at": "TEXT",
 }
 
 
@@ -622,6 +620,21 @@ GENERIC_LOCATION = re.compile(r"^\W*(india|pan[- ]india|anywhere in india|multip
                               r"across india|\d+ locations|in)\W*$|pan[- ]india|multiple locations|multiple cities")
 
 
+EMAIL_RE = re.compile(r"(?<![\w.+-])[\w.+-]{2,}@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?![\w-])", re.I)
+EMAIL_SKIP = re.compile(r"no-?reply|donotreply|do-not-reply|example\.|sentry|privacy|abuse|unsubscribe|"
+                        r"\.(png|jpe?g|gif|svg|webp)$|w3\.org|schema\.org|@(email|domain)\.com$", re.I)
+
+
+def jd_emails(text: str) -> list[str]:
+    """Recruiter / HR email addresses written in a job description (many Indian JDs say 'send CV to ...')."""
+    out = []
+    for e in EMAIL_RE.findall(s(text)):
+        e = e.strip(".").lower()
+        if not EMAIL_SKIP.search(e) and e not in out:
+            out.append(e)
+    return out[:3]
+
+
 def evaluate_job(job: Job):
     """Return (accepted: bool, reason: str). Fills job.score, role_type, matched_skills, notes.
     All person-specific rules (roles, cities, experience range) come from profile.json."""
@@ -644,7 +657,8 @@ def evaluate_job(job: Job):
     remote_city = next((c["name"] for c in LOCATIONS if c.get("remote_search")), None)
     if REJECT_REMOTE and job.is_remote and city != remote_city:
         return False, "Fully remote listing"
-    job.notes.append(f"🗺 {city}")
+    if len(LOCATIONS) > 1:
+        job.notes.append(f"🗺 {city}")          # only worth showing when you search several areas
     other_city = jd_location_conflict(desc)
     if other_city:
         return False, f"JD says location is {other_city.title()}"
@@ -799,6 +813,9 @@ def evaluate_job(job: Job):
     if required_gaps:
         pts -= 4 * len(required_gaps)
         job.notes.append("🧩 Also wants: " + ", ".join(required_gaps))
+    emails = jd_emails(desc)
+    if emails:
+        job.notes.append("📧 HR email in JD — email your resume too: " + ", ".join(emails[:2]))
 
     if job.short_jd:
         pts = max(pts, MIN_SCORE + 5)   # can't score skills without a JD; title + range already qualify
@@ -928,7 +945,8 @@ def load_company_boards() -> list[tuple[str, str, str]]:
 
 
 def _get_json(url: str):
-    req = urllib.request.Request(url, headers={"User-Agent": BOT_USER_AGENT, "Accept": "application/json"})
+    req = urllib.request.Request(url, headers={"User-Agent": BOT_USER_AGENT, "Accept": "application/json",
+                                               "Accept-Language": "en-US,en;q=0.8"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.loads(r.read().decode("utf-8"))
 
@@ -943,7 +961,7 @@ def _iso_to_date(value) -> str:
 def _post_json(url: str, body: dict):
     req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
                                  headers={"User-Agent": BOT_USER_AGENT, "Accept": "application/json",
-                                          "Content-Type": "application/json"})
+                                          "Accept-Language": "en-US,en;q=0.8", "Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.loads(r.read().decode("utf-8"))
 
@@ -999,7 +1017,13 @@ def fetch_workday(url: str, name: str) -> list[dict]:
         facets.setdefault(param, []).append(fid)
     out, seen_paths, details = [], set(), 0
     for term in WORKDAY_TERMS:
-        data = _post_json(f"{api}/jobs", {"appliedFacets": facets, "limit": 20, "offset": 0, "searchText": term})
+        try:
+            data = _post_json(f"{api}/jobs", {"appliedFacets": facets, "limit": 20, "offset": 0, "searchText": term})
+        except Exception:
+            if not facets:
+                raise
+            facets = {}            # this site rejects the city filter: search without it, filter locally
+            data = _post_json(f"{api}/jobs", {"appliedFacets": {}, "limit": 20, "offset": 0, "searchText": term})
         for jp in data.get("jobPostings", []) or []:
             ep, title = s(jp.get("externalPath")), s(jp.get("title"))
             if not ep or ep in seen_paths:
@@ -1022,7 +1046,7 @@ def fetch_workday(url: str, name: str) -> list[dict]:
             locs = [s(info.get("location")) or loc] + [s(x) for x in info.get("additionalLocations") or []]
             posted = s(info.get("startDate"))[:10] or ((now_ist().date() - timedelta(days=age)).isoformat() if age is not None else "")
             out.append(dict(title=s(info.get("title")) or title, company=name or tenant.title(),
-                            location=" / ".join(filter(None, locs)), url=s(info.get("externalUrl")) or public,
+                            location=" / ".join(filter(None, locs)), url=public,
                             description=strip_html(info.get("jobDescription")), posted_on=posted,
                             is_remote="remote" in s(info.get("remoteType")).lower()))
             time.sleep(0.3)
@@ -1163,7 +1187,7 @@ def scrape_all(hours_old: int) -> list[Job]:
     SITE_HEALTH.clear()
     with ThreadPoolExecutor(max_workers=max(1, len(SITES)) + 4) as pool:
         extra_futures = [pool.submit(scrape_company_boards), pool.submit(scrape_reed, hours_old),
-                         pool.submit(scrape_serpapi), pool.submit(scrape_adzuna)]
+                         pool.submit(scrape_serpapi)]
         for site_frames in pool.map(lambda site: _scrape_site(site, hours_old), SITES):
             frames.extend(site_frames)
         board_jobs = []
@@ -1328,7 +1352,9 @@ def fill_reed_jds(jobs: list[Job]) -> int:
 # --------------------------------------------------------------------------------------
 
 FIRECRAWL_URL = "https://api.firecrawl.dev/v2/scrape"
-FC_MONTHLY_BUDGET = int(env("FIRECRAWL_MONTHLY_BUDGET", int(FIRECRAWL.get("monthly_budget", 450))))
+# Free plan: 1,000 credits a month (1 credit per page). The bot keeps a margin and spreads the
+# allowance evenly over the month, so a busy day can never eat the rest of the month.
+FC_MONTHLY_BUDGET = int(env("FIRECRAWL_MONTHLY_BUDGET", int(FIRECRAWL.get("monthly_budget", 950))))
 FC_JD_PER_SCAN = int(env("FIRECRAWL_JD_PER_SCAN", int(FIRECRAWL.get("jd_fill_per_scan", 4))))
 FC_PAGES_PER_DAY = int(FIRECRAWL.get("careers_pages_per_day", 3))   # careers pages visited per day (rotating)
 FC_NO_SCRAPE_HOSTS = ("linkedin.com", "reed.co.uk")   # LinkedIn blocks scrapers; Reed has its own free API
@@ -1339,10 +1365,14 @@ def fc_load_state(conn) -> dict:
         st = json.loads(meta_get(conn, "firecrawl_state", "{}") or "{}")
     except json.JSONDecodeError:
         st = {}
-    month = now_ist().strftime("%Y-%m")
+    now = now_ist()
+    month, today = now.strftime("%Y-%m"), now.strftime("%Y-%m-%d")
     if st.get("month") != month:
-        st = {"month": month, "used": 0, "pages": st.get("pages", {})}
+        st = {"month": month, "used": 0, "pages": st.get("pages", {}), "links": st.get("links", {})}
     st.setdefault("pages", {})
+    st.setdefault("links", {})
+    if st.get("today") != today:                 # remember where today started, for the daily allowance
+        st["today"], st["today_start"] = today, int(st.get("used", 0))
     return st
 
 
@@ -1351,7 +1381,19 @@ def fc_save_state(conn, st: dict):
 
 
 def fc_left(st: dict) -> int:
-    return max(0, FC_MONTHLY_BUDGET - int(st.get("used", 0))) if FIRECRAWL_KEY else 0
+    """Credits the bot may still spend now: the monthly budget, spread evenly over the days left."""
+    if not FIRECRAWL_KEY:
+        return 0
+    used = int(st.get("used", 0))
+    month_left = max(0, FC_MONTHLY_BUDGET - used)
+    if not st.get("today"):
+        return month_left
+    now = now_ist()
+    first_next = (now.replace(day=28) + timedelta(days=4)).replace(day=1)
+    days_left = max(1, (first_next.date() - now.date()).days)
+    start = int(st.get("today_start", used))
+    daily = math.ceil(max(0, FC_MONTHLY_BUDGET - start) / days_left)
+    return max(0, min(month_left, start + daily - used))
 
 
 def firecrawl_markdown(url: str, st: dict) -> str:
@@ -1371,7 +1413,7 @@ def firecrawl_markdown(url: str, st: dict) -> str:
         log(f"firecrawl | {e.code} for {url[:80]}")
         if e.code in (401, 402, 429):
             SITE_HEALTH["firecrawl"] = {401: "bad API key", 402: "out of credits", 429: "rate-limited"}[e.code]
-            st["used"] = FC_MONTHLY_BUDGET        # stop for this run
+            st["used"] = max(int(st.get("used", 0)), FC_MONTHLY_BUDGET)   # stop for this run
     except Exception as e:
         log(f"firecrawl | failed for {url[:80]}: {str(e)[:100]}")
     return ""
@@ -1394,6 +1436,31 @@ def load_careers_pages() -> list[tuple[str, str, str]]:
 
 
 MD_LINK = re.compile(r"\[([^\]\n]{4,160})\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+MONTHS = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
+
+
+def date_from_text(text: str) -> str:
+    """Posting date written on a job page: 'Posted 3 days ago', 'Posted on: Nov 24, 2026', 'Date posted 24/11/2026'."""
+    t = s(text).lower()[:6000]
+    m = re.search(r"(?:posted|published|date posted|posting date|listed)[^\n]{0,25}?(today|yesterday|"
+                  r"\d+\+?\s*(?:hours?|days?|weeks?|months?) ago)", t)
+    if m:
+        a = _ago_days(m.group(1))
+        return (now_ist().date() - timedelta(days=a)).isoformat() if a is not None else ""
+    m = re.search(r"(?:posted|published|date posted|posting date)\D{0,20}"
+                  r"(\d{1,2})[\s/.-]*([a-z]{3})[a-z]*[\s/.,-]*(\d{4})|"
+                  r"(?:posted|published|date posted|posting date)\D{0,20}([a-z]{3})[a-z]*\s+(\d{1,2}),?\s+(\d{4})|"
+                  r"(?:posted|published|date posted|posting date)\D{0,20}(\d{4})-(\d{2})-(\d{2})", t)
+    try:
+        if m and m.group(1):
+            return datetime(int(m.group(3)), MONTHS[m.group(2)], int(m.group(1))).date().isoformat()
+        if m and m.group(4):
+            return datetime(int(m.group(6)), MONTHS[m.group(4)], int(m.group(5))).date().isoformat()
+        if m and m.group(7):
+            return datetime(int(m.group(7)), int(m.group(8)), int(m.group(9))).date().isoformat()
+    except (KeyError, ValueError):
+        pass
+    return ""
 
 
 def city_from_text(text: str) -> str:
@@ -1412,9 +1479,10 @@ def city_from_text(text: str) -> str:
 
 
 def scrape_careers_pages(st: dict, seen_ids: set) -> list[Job]:
-    """Visit up to FC_PAGES_PER_DAY careers pages a day (oldest-visited first, so every company comes
-    round in turn), pick links whose text looks like one of your target titles, then open those job
-    pages for the full JD. Uses Firecrawl credits."""
+    """Visit up to FC_PAGES_PER_DAY careers pages a day (least recently visited first, so every company
+    comes round in turn). Careers pages rarely show dates, so the FIRST visit to a page only records which
+    jobs are already there; later visits alert only jobs that APPEARED since - i.e. freshly posted ones.
+    Matching new links are opened (1 credit each) for the full JD."""
     pages = load_careers_pages()
     if not pages or not FIRECRAWL_KEY:
         return []
@@ -1424,7 +1492,7 @@ def scrape_careers_pages(st: dict, seen_ids: set) -> list[Job]:
     key = lambda u: hashlib.sha1(u.encode()).hexdigest()[:10]
     last = lambda u: s(st["pages"].get(key(u))) if not isinstance(st["pages"].get(key(u)), dict) else ""
     due = sorted((p for p in pages if last(p[0]) != today), key=lambda p: last(p[0]))
-    jobs, visited, fetched, empty = [], [], 0, []
+    jobs, visited, fetched, empty, baselined = [], [], 0, [], []
     for page_url, company, default_city in due:
         if visits_today >= FC_PAGES_PER_DAY or fc_left(st) <= 2:
             break
@@ -1434,23 +1502,30 @@ def scrape_careers_pages(st: dict, seen_ids: set) -> list[Job]:
         host = urllib.parse.urlparse(page_url).netloc
         company = company or re.sub(r"^(www|jobs|careers|career)\.", "", host).split(".")[0].replace("-", " ").title()
         visited.append(company)
-        links = []
+        if not md:
+            empty.append(company)
+            continue
+        all_links, links = [], []
         for text, link in MD_LINK.findall(md):
-            t = re.sub(r"[*_`#\\]", "", text).strip()
-            tl = t.lower()
-            if not TITLE_MUST.search(tl) or (TITLE_REJECT and TITLE_REJECT.search(tl)):
-                continue
-            if (TITLE_SENIOR and TITLE_SENIOR.search(tl)) or (REJECT_FRESHER_ROLES and TITLE_JUNIOR and TITLE_JUNIOR.search(tl)):
-                continue
             link = urllib.parse.urljoin(page_url, link)
             if not link.startswith("http"):
                 continue
             jid = job_key(link)
-            if jid in seen_ids or any(jid == x[2] for x in links):
+            all_links.append(jid)
+            t = re.sub(r"[*_`#\\]", "", text).strip()
+            if not title_prefilter(t) or jid in seen_ids or any(jid == x[2] for x in links):
                 continue
             links.append((t, link, jid))
-        if not links:
-            empty.append(company)
+        if not all_links:
+            empty.append(company)          # page loaded but shows no job links: its URL needs fixing
+            continue
+        known = st["links"].get(key(page_url))
+        st["links"][key(page_url)] = list(dict.fromkeys(all_links + (known or [])))[:600]
+        if known is None:
+            baselined.append(company)      # first visit: jobs already listed have unknown age, so not alerted
+            continue
+        known = set(known)
+        links = [x for x in links if x[2] not in known]
         for title, link, jid in links:
             if fetched >= FC_JD_PER_SCAN or fc_left(st) <= 1:
                 break
@@ -1464,12 +1539,15 @@ def scrape_careers_pages(st: dict, seen_ids: set) -> list[Job]:
                 other = next((c for c in OTHER_CITIES if re.search(rf"\b{re.escape(c)}\b", fold(jd[:5000]))), None)
                 loc = other.title() if other else default_city
             jobs.append(Job(id=jid, fp=fingerprint(title, company), title=title, company=company, location=loc,
-                            url=link, site=f"{company.lower()} careers", description=jd[:12000], posted_on=""))
+                            url=link, site=f"{company.lower()} careers", description=jd[:12000],
+                            posted_on=date_from_text(jd)))
     st["day"] = {"date": today, "n": visits_today}
     if visited:
-        msg = f"{len(visited)} visited ({', '.join(visited)}), {len(jobs)} matching, {fc_left(st)} credits left"
+        msg = f"{len(visited)} visited ({', '.join(visited)}), {len(jobs)} new matching, {fc_left(st)} credits left today"
+        if baselined:
+            msg += f"; first visit (recorded existing jobs) {', '.join(baselined)}"
         if empty:
-            msg += f"; no matching links on {', '.join(empty)}"
+            msg += f"; no job links on {', '.join(empty)} - check its URL"
         SITE_HEALTH["careers pages"] = msg
     return jobs
 
@@ -1483,7 +1561,7 @@ def fill_missing_jds(jobs: list[Job], st: dict) -> int:
         md = firecrawl_markdown(j.url, st)
         if len(md.strip()) >= MIN_JD_CHARS:
             j.description = md[:12000]
-            j.notes.append("🔥 Full JD fetched with Firecrawl")
+            j.notes.append("📄 Full JD fetched with Firecrawl")
             filled += 1
     if filled:
         SITE_HEALTH["firecrawl JDs"] = f"{filled} filled"
@@ -1500,16 +1578,14 @@ def needs_jd(job: Job) -> bool:
 
 
 # --------------------------------------------------------------------------------------
-# 5e. SEARCH APIs WITH FREE KEYS (optional): SerpApi Google Jobs + Adzuna
+# 5e. GOOGLE JOBS VIA SERPAPI (optional, SERPAPI_KEY - free plan: 250 searches/month, no card)
 #     Google Jobs collects LinkedIn / Naukri / company postings WITH full descriptions, which matters
-#     because LinkedIn often refuses to send descriptions to GitHub's servers. Both free plans are small,
-#     so calls are counted per month (database meta "api_usage") and each scan uses only a few.
+#     because LinkedIn often refuses to send descriptions to GitHub's servers. Searches are counted per
+#     month (database meta "api_usage") and each scan uses only one or two.
 # --------------------------------------------------------------------------------------
 
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
-ADZUNA_ID, ADZUNA_KEY = os.getenv("ADZUNA_APP_ID", ""), os.getenv("ADZUNA_APP_KEY", "")
 SERP = PROFILE.get("serpapi", {})
-ADZ = PROFILE.get("adzuna", {})
 API_STATE: dict = {}          # loaded from / saved to the database by scrape_and_alert
 
 
@@ -1562,9 +1638,12 @@ def scrape_serpapi() -> list[Job]:
         if api_left("serpapi", budget) <= 0:
             SITE_HEALTH["google jobs"] = "monthly SerpApi budget used up"
             break
-        params = {"engine": "google_jobs", "q": term, "location": SERP.get("location", LOCATIONS[0]["search"]),
+        suffix = SERP.get("query_suffix", f"in {LOCATIONS[0]['name']}")
+        params = {"engine": "google_jobs", "q": f"{term} {suffix}".strip(),
                   "google_domain": SERP.get("google_domain", "google.co.in"), "gl": SERP.get("gl", "in"), "hl": "en",
                   "api_key": SERPAPI_KEY}
+        if SERP.get("location"):
+            params["location"] = SERP["location"]        # must be a location name SerpApi knows
         API_STATE["serpapi"] = int(API_STATE.get("serpapi", 0)) + 1
         try:
             data = _get_json("https://serpapi.com/search.json?" + urllib.parse.urlencode(params))
@@ -1593,43 +1672,6 @@ def scrape_serpapi() -> list[Job]:
         log(f"serpapi  | {term:36s} | {len(results)} results")
     if terms and "google jobs" not in SITE_HEALTH:
         SITE_HEALTH["google jobs"] = f"ok {len(jobs)} ({api_left('serpapi', budget)} searches left this month)"
-    return jobs
-
-
-def scrape_adzuna() -> list[Job]:
-    if not (ADZUNA_ID and ADZUNA_KEY and ADZ.get("enabled", True)):
-        return []
-    budget = int(ADZ.get("monthly_budget", 900))
-    terms = _rotating(ADZ.get("terms") or SEARCH_TERMS, int(ADZ.get("per_scan", 4)), "adzuna")
-    jobs = []
-    for term in terms:
-        if api_left("adzuna", budget) <= 0:
-            SITE_HEALTH["adzuna"] = "monthly budget used up"
-            break
-        params = {"app_id": ADZUNA_ID, "app_key": ADZUNA_KEY, "what": term, "where": ADZ.get("where", "Hyderabad"),
-                  "max_days_old": int(ADZ.get("max_days_old", MAX_AGE_DAYS + 1)), "results_per_page": 50,
-                  "sort_by": "date", "content-type": "application/json"}
-        API_STATE["adzuna"] = int(API_STATE.get("adzuna", 0)) + 1
-        try:
-            data = _get_json(f"https://api.adzuna.com/v1/api/jobs/{ADZ.get('country', 'in')}/search/1?"
-                             + urllib.parse.urlencode(params))
-        except Exception as e:
-            log(f"adzuna   | {term} failed: {str(e)[:120]}")
-            SITE_HEALTH["adzuna"] = "error (check ADZUNA keys)" if re.search(r"401|403", str(e)) else "error"
-            continue
-        results = data.get("results") or []
-        for j in results:
-            url = s(j.get("redirect_url"))
-            if not url:
-                continue
-            jobs.append(Job(id=job_key(url), fp=fingerprint(strip_html(j.get("title")), s((j.get("company") or {}).get("display_name"))),
-                            title=strip_html(j.get("title")), company=s((j.get("company") or {}).get("display_name")) or "Unknown company",
-                            location=s((j.get("location") or {}).get("display_name")), url=url, site="adzuna",
-                            description="", snippet=strip_html(j.get("description")), posted_on=_iso_to_date(j.get("created"))))
-        log(f"adzuna   | {term:36s} | {len(results)} results")
-        time.sleep(1)
-    if terms and "adzuna" not in SITE_HEALTH:
-        SITE_HEALTH["adzuna"] = f"ok {len(jobs)}"
     return jobs
 
 
@@ -1698,6 +1740,8 @@ because information is missing (say so in "reason").
 {screen_notes}
 Return ONLY a JSON array, one object per job, in the same order:
 [{{"id": "...", "verdict": "accept" or "reject", "reason": "<= 15 words",
+  "fit": 0-100 (how well the candidate's REAL skills, level and goals match this job; 80+ = strong match,
+         50 = possible, below 40 = weak),
   "min_years_required": number or null, "work_city": "...", "remote_only": true/false,
   "stipend_or_salary": "... or null", "red_flags": ["..."],
   "must_have_skills": ["..."], "candidate_missing": ["skills/tools the JD requires that the candidate lacks"]}}]
@@ -1842,6 +1886,7 @@ Return ONLY this JSON:
  }},
  "cover_letter": {{"greeting": "Dear Hiring Team at ...,", "paragraphs": ["..."], "closing": "Sincerely,"}},
  "recruiter_message": "LinkedIn connection note under 280 characters",
+ "email_body": "80-120 word plain-text email to the recruiter applying for this role (resume attached), signed with the candidate's name, no placeholders",
  "match": {{"strong": ["..."], "gaps": ["..."], "interview_prep": ["3-5 likely interview topics for this JD"]}}
 }}
 
@@ -2229,6 +2274,26 @@ def render_resume_docx(data: dict, path: Path):
 # 9. TELEGRAM
 # --------------------------------------------------------------------------------------
 
+TOP_SCORE = float(PROFILE.get("top_score", 75))      # ⭐ marker (and auto-tailoring threshold by default)
+AUTO_TAILOR = PROFILE.get("auto_tailor", {}) or {}  # {"max_per_scan": 2, "min_score": 75}
+FOLLOW_UP_DAYS = int(PROFILE.get("follow_up_days", 4))
+
+
+def linkedin_people_url(keywords: str) -> str:
+    return "https://www.linkedin.com/search/results/people/?" + urllib.parse.urlencode({"keywords": keywords})
+
+
+def reach_out_links(company) -> str:
+    """Links that open LinkedIn people search (nothing is automated on LinkedIn)."""
+    company = s(company) or "the company"
+    city = LOCATIONS[0]["name"].split(" /")[0].split(" (")[0]
+    links = [f'<a href="{html.escape(linkedin_people_url(f"{company} recruiter {city}"))}">recruiters at {esc(company)}</a>']
+    school = PROFILE.get("alumni_school")
+    if school:
+        links.append(f'<a href="{html.escape(linkedin_people_url(f"{company} {school}"))}">{esc(school)} alumni there (referral)</a>')
+    return " · ".join(links)
+
+
 def job_card(job) -> str:
     get = (lambda k: job[k]) if isinstance(job, sqlite3.Row) else (lambda k: getattr(job, k if k != "matched_skills" else "matched_skills"))
     skills = get("matched_skills")
@@ -2237,7 +2302,9 @@ def job_card(job) -> str:
     notes = json.loads(notes) if isinstance(notes, str) and notes else (notes or [])
     ai = get("ai_json") if isinstance(job, sqlite3.Row) else job.ai
     ai = json.loads(ai) if isinstance(ai, str) and ai else (ai or {})
+    top = (get("score") or 0) >= TOP_SCORE
     lines = [
+        ("⭐ <b>TOP MATCH</b>  ·  " if top else "") +
         f"{'🎓' if get('role_type') == 'Internship' else '💼'} <b>{esc(get('role_type'))}</b>  ·  🎯 <b>{get('score')}%</b> match",
         f"⚡ <b>{esc(get('title'))}</b>",
         f"🏢 {esc(get('company'))}",
@@ -2280,8 +2347,8 @@ def card_keyboard(jid: str, url: str, state: str = "new"):
 
 
 async def send_alert(bot, job: Job):
-    await bot.send_message(chat_id=CHAT_ID, text=job_card(job), parse_mode="HTML",
-                           reply_markup=card_keyboard(job.id, job.url), disable_web_page_preview=True)
+    return await bot.send_message(chat_id=CHAT_ID, text=job_card(job), parse_mode="HTML",
+                                  reply_markup=card_keyboard(job.id, job.url), disable_web_page_preview=True)
 
 
 async def safe_edit_markup(query, markup):
@@ -2291,14 +2358,18 @@ async def safe_edit_markup(query, markup):
         log(f"edit markup failed: {str(e)[:100]}")
 
 
-async def do_apply(bot, conn, query, jid):
+async def do_apply(bot, conn, query, jid, auto: bool = False) -> bool:
+    """Tailor resume + cover letter for one job. auto=True: started by the bot for a top match (no tap)."""
     row = conn.execute("SELECT * FROM jobs WHERE id=?", (jid,)).fetchone()
     if not row:
-        await bot.send_message(CHAT_ID, "This job is no longer in the database (old button?).")
-        return
+        if not auto:
+            await bot.send_message(CHAT_ID, "This job is no longer in the database (old button?).")
+        return False
     if query:
         await safe_edit_markup(query, card_keyboard(jid, row["url"], "working"))
-    status_msg = await bot.send_message(CHAT_ID, f"⏳ Tailoring resume + cover letter for <b>{esc(row['title'])}</b> at {esc(row['company'])}…", parse_mode="HTML")
+    intro = "⭐ Top match — preparing your resume + cover letter now for" if auto else "⏳ Tailoring resume + cover letter for"
+    status_msg = await bot.send_message(CHAT_ID, f"{intro} <b>{esc(row['title'])}</b> at {esc(row['company'])}…", parse_mode="HTML")
+    ok = False
     try:
         result = await asyncio.to_thread(tailor, row)
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -2322,8 +2393,16 @@ async def do_apply(bot, conn, query, jid):
             parts.append("🧩 <b>Gaps (not on resume):</b> " + esc("; ".join(map(s, m["gaps"][:4]))))
         if m.get("interview_prep"):
             parts.append("🎤 <b>Prep:</b> " + esc("; ".join(map(s, m["interview_prep"][:5]))))
+        emails = jd_emails(row["description"])
+        if emails:
+            subject = f"Application for {row['title']} - {CANDIDATE_NAME}"
+            mail = f"📧 <b>Also email your resume to</b> {esc(', '.join(emails[:2]))}\nSubject: <code>{esc(subject)}</code>"
+            if result.get("email_body"):
+                mail += "\n<code>" + esc(result["email_body"]) + "</code>"
+            parts.append(mail)
         if result.get("recruiter_message"):
             parts.append("✉️ <b>LinkedIn note (tap to copy):</b>\n<code>" + esc(result["recruiter_message"]) + "</code>")
+        parts.append("👥 <b>Get noticed faster:</b> " + reach_out_links(row["company"]))
         if result.get("_removed_skills"):
             parts.append("🛡 Removed unverified skills: " + esc(", ".join(result["_removed_skills"][:6])))
         ats = result.get("_ats") or {}
@@ -2341,11 +2420,13 @@ async def do_apply(bot, conn, query, jid):
             parts.append("⚠️ Add your " + ", ".join(result["_missing"]) + " to master_resume.md — they are missing from the resume.")
         await bot.send_message(CHAT_ID, "\n\n".join(parts), parse_mode="HTML", disable_web_page_preview=True)
         set_status(conn, jid, "tailored")
+        ok = True
         if query:
             await safe_edit_markup(query, card_keyboard(jid, row["url"], "tailored"))
     except Exception as e:
         log(f"tailor failed: {e}")
-        await bot.send_message(CHAT_ID, f"❌ Could not tailor: {esc(str(e)[:300])}\nTap Apply again to retry.", parse_mode="HTML")
+        if not auto:
+            await bot.send_message(CHAT_ID, f"❌ Could not tailor: {esc(str(e)[:300])}\nTap Apply again to retry.", parse_mode="HTML")
         if query:
             await safe_edit_markup(query, card_keyboard(jid, row["url"], "new"))
     finally:
@@ -2353,6 +2434,53 @@ async def do_apply(bot, conn, query, jid):
             await status_msg.delete()
         except Exception:
             pass
+    return ok
+
+
+async def auto_tailor_top(bot, conn, jobs: list, cards: dict):
+    """Prepare documents for the best fresh matches before you even tap, so you can apply within minutes.
+    profile.json -> auto_tailor {"max_per_scan": N, "min_score": S}. Off when max_per_scan is 0 / missing."""
+    n = int(AUTO_TAILOR.get("max_per_scan", 0) or 0)
+    if n <= 0:
+        return
+    min_score = float(AUTO_TAILOR.get("min_score", TOP_SCORE))
+    best = [j for j in jobs if j.score >= min_score and not j.short_jd]
+    best.sort(key=lambda j: (99 if age_days(j.posted_on) is None else age_days(j.posted_on), -j.score))
+    for j in best[:n]:
+        if await do_apply(bot, conn, None, j.id, auto=True):
+            msg = cards.get(j.id)
+            if msg is not None and getattr(msg, "message_id", None):
+                try:
+                    await bot.edit_message_reply_markup(chat_id=CHAT_ID, message_id=msg.message_id,
+                                                        reply_markup=card_keyboard(j.id, j.url, "tailored"))
+                except Exception as e:
+                    log(f"card update failed: {str(e)[:80]}")
+
+
+async def send_follow_ups(bot, conn, limit: int = 3):
+    """N days after you mark a job Applied, one nudge to message the recruiter (it speeds up shortlisting)."""
+    if FOLLOW_UP_DAYS <= 0:
+        return
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=FOLLOW_UP_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+    rows = conn.execute("SELECT * FROM jobs WHERE status='applied' AND COALESCE(followed_up_at, '') = '' "
+                        "AND updated_at <= ? ORDER BY updated_at LIMIT ?", (cutoff, limit)).fetchall()
+    first = PROFILE.get("short_name") or (CANDIDATE_NAME.split() or [CANDIDATE_NAME])[0]
+    pitch = PROFILE.get("follow_up_pitch", "I believe my skills are a strong match for the role.")
+    for r in rows:
+        applied = parse_utc(r["updated_at"])
+        days = (datetime.now(timezone.utc) - applied).days if applied else FOLLOW_UP_DAYS
+        when = applied.astimezone(IST).strftime("%d %b") if applied else "recently"
+        note = (f"Hi, I applied for the {r['title']} role at {r['company']} on {when}. {pitch} "
+                f"I'd love to be considered and can share anything you need. Thank you! - {first}")
+        text = (f"⏰ <b>Follow up today</b> — you applied for <b>{esc(r['title'])}</b> at {esc(r['company'])} "
+                f"{days} days ago.\nA short message to the recruiter often gets you shortlisted faster:\n"
+                f"<code>{esc(note)}</code>\n👥 {reach_out_links(r['company'])}")
+        try:
+            await bot.send_message(CHAT_ID, text, parse_mode="HTML", disable_web_page_preview=True)
+            conn.execute("UPDATE jobs SET followed_up_at=? WHERE id=?", (now_iso(), r["id"]))
+            conn.commit()
+        except Exception as e:
+            log(f"follow-up failed: {str(e)[:80]}")
 
 
 async def do_jd_check(bot, conn, jid):
@@ -2424,8 +2552,6 @@ def weekly_report_text(conn) -> str:
         usage.append(f"Firecrawl {fc.get('used', 0)}/{FC_MONTHLY_BUDGET}")
     if SERPAPI_KEY:
         usage.append(f"SerpApi {api.get('serpapi', 0)}/{SERP.get('monthly_budget', 240)}")
-    if ADZUNA_ID:
-        usage.append(f"Adzuna {api.get('adzuna', 0)}/{ADZ.get('monthly_budget', 900)}")
     if usage:
         lines += ["", "<i>API use this month: " + " · ".join(usage) + "</i>"]
     top = max(by_reason.items(), key=lambda kv: kv[1])[0] if by_reason else ""
@@ -2650,19 +2776,15 @@ def compute_window(conn) -> tuple[int, float | None]:
     return int(HOURS_OLD or 48), gap
 
 
-def split_lists(jobs: list) -> tuple[list, list, list]:
-    """🔥 very recent = posted today; 📅 earlier = yesterday / day before / date unknown;
-    🏢 company = new on a company career site but posted more than 2 days ago. No job in two lists."""
+def split_lists(jobs: list) -> tuple[list, list]:
+    """🔥 very recent = posted today; 📅 last 48 hours = yesterday / day before / date unknown
+    (e.g. a job that just appeared on a company careers page). Best match first. No job in both lists."""
     recent = [j for j in jobs if age_days(j.posted_on) == 0]
     ids = {j.id for j in recent}
-    company = [j for j in jobs if j.id not in ids and j.site.endswith("careers")
-               and (age_days(j.posted_on) is None or age_days(j.posted_on) > MAX_AGE_DAYS)]
-    ids |= {j.id for j in company}
     earlier = [j for j in jobs if j.id not in ids]
     recent.sort(key=lambda j: -j.score)
     earlier.sort(key=lambda j: (99 if age_days(j.posted_on) is None else age_days(j.posted_on), -j.score))
-    company.sort(key=lambda j: -j.score)
-    return recent, earlier, company
+    return recent, earlier
 
 
 async def scrape_and_alert(bot, conn, manual: bool = False):
@@ -2701,7 +2823,7 @@ async def scrape_and_alert(bot, conn, manual: bool = False):
         fc_save_state(conn, fc_state)
     for j in scraped:
         if not j.description and j.snippet:
-            j.description = j.snippet        # preview text only (e.g. Adzuna) - treated as a short JD
+            j.description = j.snippet        # preview text only - treated as a short JD
     stats = {"scraped": len(scraped), "seen": 0, "filtered": 0, "ai_rejected": 0, "sent": 0}
     reasons = {}
     no_jd = {}
@@ -2744,16 +2866,24 @@ async def scrape_and_alert(bot, conn, manual: bool = False):
             save_job(conn, j, "filtered", f"AI: {s(j.ai.get('reason'))}")
             continue
         ai_years = j.ai.get("min_years_required") if j.ai else None
-        if isinstance(ai_years, (int, float)) and ai_years >= REJECT_MIN_YEARS:
+        if isinstance(ai_years, (int, float)) and not isinstance(ai_years, bool) and ai_years >= REJECT_MIN_YEARS:
             save_job(conn, j, "filtered", f"AI found {ai_years} yrs required")
             stats["ai_rejected"] += 1
             continue
+        fit = j.ai.get("fit") if j.ai else None
+        try:
+            fit = None if isinstance(fit, bool) or fit is None else float(fit)
+        except (TypeError, ValueError):
+            fit = None
+        if fit is not None and 0 <= fit <= 100:
+            j.score = round(0.5 * j.score + 0.5 * float(fit), 1)    # rules + AI judgement -> best jobs first
         final.append(j)
-    recent, earlier, company = split_lists(final)
-    # the rest waits for the next scan (still unsaved, so it is not lost)
-    recent, earlier, company = recent[:cap_recent], earlier[:cap_earlier], company[:MAX_COMPANY]
-    stats["recent"], stats["earlier"], stats["company"] = len(recent), len(earlier), len(company)
+    recent, earlier = split_lists(final)
+    recent, earlier = recent[:cap_recent], earlier[:cap_earlier]   # the rest waits for the next scan (unsaved)
+    stats["recent"], stats["earlier"] = len(recent), len(earlier)
     prefix = "🌙 Overnight · " if overnight and now_ist().hour < SCAN_SLOTS_IST[0] + 3 else ""
+
+    cards = {}
 
     async def send_list(header: str, jobs: list):
         if not jobs:
@@ -2762,7 +2892,7 @@ async def scrape_and_alert(bot, conn, manual: bool = False):
                                parse_mode="HTML")
         for j in jobs:
             try:
-                await send_alert(bot, j)
+                cards[j.id] = await send_alert(bot, j)
                 save_job(conn, j, "sent")
                 stats["sent"] += 1
                 await asyncio.sleep(0.6)
@@ -2771,7 +2901,6 @@ async def scrape_and_alert(bot, conn, manual: bool = False):
 
     await send_list("🔥 <b>VERY RECENT</b> · posted today · apply first", recent)
     await send_list("📅 <b>LAST 48 HOURS</b> · posted yesterday / day before", earlier)
-    await send_list("🏢 <b>NEW ON COMPANY CAREER SITES</b> · first seen today, posted this fortnight", company)
 
     meta_set(conn, "last_scan_at", scan_started)   # next scan looks back to the start of this one
     log(f"Run stats: {stats} | window {hours}h | reasons: {reasons}")
@@ -2783,8 +2912,7 @@ async def scrape_and_alert(bot, conn, manual: bool = False):
         top = ", ".join(f"{k} {v}" for k, v in sorted(reasons.items(), key=lambda kv: -kv[1])[:6])
         msg = (f"🔎 Scan done ({hours}h window): {stats['scraped']} listings · {stats['seen']} already seen · "
                f"{stats['filtered'] + stats['ai_rejected']} filtered · <b>{stats['sent']} sent</b> "
-               f"(🔥 {stats.get('recent', 0)} very recent · 📅 {stats.get('earlier', 0)} last 48h"
-               + (f" · 🏢 {stats['company']} company sites" if stats.get("company") else "") + ")")
+               f"(🔥 {stats.get('recent', 0)} very recent · 📅 {stats.get('earlier', 0)} last 48h)")
         if top:
             msg += f"\n<i>Filtered: {esc(top)}</i>"
         if SITE_HEALTH:
@@ -2794,6 +2922,8 @@ async def scrape_and_alert(bot, conn, manual: bool = False):
         if not stats["sent"]:
             msg += "\nSend /why to see the filtered jobs."
         await bot.send_message(CHAT_ID, msg, parse_mode="HTML")
+    await auto_tailor_top(bot, conn, [j for j in recent + earlier if j.id in cards], cards)
+    await send_follow_ups(bot, conn)
     await maybe_send_weekly_report(bot, conn, manual)
 
 
@@ -2957,18 +3087,26 @@ def selftest():
     for i, (d, sc) in enumerate([(t0, 60), (t1, 90), (t0, 85), (t2, 70), (None, 80)]):
         j = mk(f"J{i}", "Hyderabad", ""); j.id, j.score, j.posted_on = f"j{i}", sc, d.isoformat() if d else ""
         js.append(j)
-    cj = mk("C1", "Hyderabad", ""); cj.id, cj.score, cj.site = "c1", 75, "nvidia careers"
-    cj.posted_on = (now_ist().date() - timedelta(days=9)).isoformat()
-    js.append(cj)
-    rec, earl, comp = split_lists(js)
+    rec, earl = split_lists(js)
     check(f"very recent = today only, best first -> {[j.title for j in rec]}", [j.title for j in rec] == ["J2", "J0"])
     check(f"last 48h = rest, newest first -> {[j.title for j in earl]}", [j.title for j in earl] == ["J1", "J3", "J4"])
-    check(f"company list = older company-site jobs -> {[j.title for j in comp]}", [j.title for j in comp] == ["C1"])
-    check("no job in two lists", not ({j.id for j in rec} & {j.id for j in earl}) and not ({j.id for j in comp} & {j.id for j in earl}))
+    check("no job in both lists", not ({j.id for j in rec} & {j.id for j in earl}))
     check("workday age parsing", (_workday_age("Posted Today"), _workday_age("Posted Yesterday"), _workday_age("Posted 3 Days Ago"),
                                   _workday_age("Posted 30+ Days Ago")) == (0, 1, 3, 30))
     check("google jobs age parsing", (_ago_days("5 hours ago"), _ago_days("1 day ago"), _ago_days("2 days ago"),
                                       _ago_days("")) == (0, 1, 2, None))
+    d2 = (now_ist().date() - timedelta(days=2)).isoformat()
+    check("careers page dates", (date_from_text("Posted 2 days ago"), date_from_text("Date posted: 24 Nov 2026"),
+                                 date_from_text("Posted on Nov 24, 2026"), date_from_text("Posted: 2026-11-24"),
+                                 date_from_text("no date here")) == (d2, "2026-11-24", "2026-11-24", "2026-11-24", ""))
+    check("HR emails found, junk ignored",
+          jd_emails("Send CV to hr.jobs@acme.co.in or careers@acme.com. noreply@acme.com logo@2x.png") ==
+          ["hr.jobs@acme.co.in", "careers@acme.com"])
+    st = {"used": 100, "today": now_ist().strftime("%Y-%m-%d"), "today_start": 100}
+    globals()["FIRECRAWL_KEY"], saved_key = "test", FIRECRAWL_KEY
+    left = fc_left(st)
+    globals()["FIRECRAWL_KEY"] = saved_key
+    check(f"firecrawl daily allowance is a fair share of the month ({left})", 0 < left <= FC_MONTHLY_BUDGET - 100)
     check("manual scrape always scans", plan("scrape", "workflow_dispatch") == "scrape")
     tmp.execute("CREATE TABLE jobs (id TEXT, fingerprint TEXT, status TEXT, filter_version INTEGER)")
     tmp.execute("INSERT INTO jobs VALUES ('old','f1','filtered',NULL), ('new','f2','filtered',?), ('s','f3','sent',NULL)", (FILTER_VERSION,))

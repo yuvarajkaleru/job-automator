@@ -13,7 +13,7 @@
   "reject_remote": true,
   "soft_preferred_years": true,
   "min_score": 30,
-  "company_feed_max_age_days": 14,
+  "company_feed_max_age_days": 2,
   "locations": [
     {
       "name": "Hyderabad",
@@ -117,7 +117,8 @@
     "enabled": true,
     "per_scan": 1,
     "monthly_budget": 240,
-    "location": "Hyderabad, Telangana, India",
+    "query_suffix": "in Hyderabad",
+    "gl": "in",
     "terms": [
       "Python developer fresher",
       "FastAPI developer",
@@ -126,25 +127,7 @@
       "SDE 1 fresher",
       "backend developer fresher",
       "associate software engineer",
-      "software engineer intern"
-    ]
-  },
-  "adzuna": {
-    "enabled": true,
-    "per_scan": 4,
-    "monthly_budget": 900,
-    "country": "in",
-    "where": "Hyderabad",
-    "max_days_old": 3,
-    "terms": [
-      "python developer",
-      "fastapi",
-      "software engineer fresher",
-      "python intern",
-      "backend developer",
-      "graduate engineer trainee",
-      "associate software engineer",
-      "software developer trainee"
+      "software engineer intern 2027"
     ]
   },
   "workday_search": [
@@ -449,8 +432,17 @@
     "backup_cron_utc": "50 2,5,8,11,14,17 * * *"
   },
   "firecrawl": {
-    "careers_pages_per_day": 4,
+    "careers_pages_per_day": 8,
     "jd_fill_per_scan": 6,
-    "monthly_budget": 450
-  }
+    "monthly_budget": 950
+  },
+  "short_name": "Yuvaraj",
+  "top_score": 75,
+  "auto_tailor": {
+    "max_per_scan": 2,
+    "min_score": 75
+  },
+  "follow_up_days": 4,
+  "follow_up_pitch": "I'm a final-year B.Tech (CSBS) student graduating in 2027 who builds Python/FastAPI backends - my projects include a live FastAPI ticket system with JWT auth and role-based access.",
+  "alumni_school": "GITAM"
 }
