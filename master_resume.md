@@ -4,6 +4,7 @@ HOW THIS FILE IS USED
 - The job bot hands this file to Claude every time you tap "Apply" in Telegram.
   Claude may ONLY use facts written here. It picks, reorders and rewords them for each job.
 - Anything containing {{FILL ...}} is ignored by the bot until you replace it.
+- ${RESUME_EMAIL} and ${RESUME_PHONE} are filled from GitHub Secrets, so this public repo never shows them.
 - Add facts freely. Keep each bullet true. Numbers you can defend in an interview are gold.
 - Lines starting with "Priority:" tell the bot what to show first (high / medium / low).
 -->
@@ -11,8 +12,8 @@ HOW THIS FILE IS USED
 ## CONTACT
 - Name: Kaleru Yuvaraj
 - Location: Hyderabad, Telangana, India
-- Email: yuvaraj.kaleru.dev@gmail.com
-- Phone: +91 9392716766
+- Email: ${RESUME_EMAIL}
+- Phone: ${RESUME_PHONE}
 - LinkedIn: https://www.linkedin.com/in/yuvarajkaleru
 - GitHub: https://github.com/yuvarajkaleru
 
